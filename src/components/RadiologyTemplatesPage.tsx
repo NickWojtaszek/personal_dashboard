@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import { loadItem, saveItem, removeItem } from "../lib/storage";
 
 const TEMPLATES = [
   {
@@ -671,38 +672,19 @@ export default function RadiologyTemplatesPage() {
 
   const STORAGE_KEY = "radreport-edits";
 
-  const loadFromStorage = () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const data = JSON.parse(raw);
-        if (data.editedSections) setEditedSections(data.editedSections);
-        if (data.editedLabels) setEditedLabels(data.editedLabels);
-        if (data.editedNames) setEditedNames(data.editedNames);
-        if (data.customSections) setCustomSections(data.customSections);
-        if (data.removedSections) setRemovedSections(data.removedSections);
-        if (data.verbosity) setVerbosity(data.verbosity);
-      }
-    } catch {
-      console.log("No saved data found, starting fresh.");
-    }
-    setStorageReady(true);
-  };
-
-  const saveToStorage = (data: unknown) => {
-    try {
-      setSaveStatus("saving");
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      setSaveStatus("saved");
-      setTimeout(() => setSaveStatus(null), 1500);
-    } catch (e) {
-      console.error("Failed to save:", e);
-      setSaveStatus(null);
-    }
-  };
-
   useEffect(() => {
-    loadFromStorage();
+    loadItem<Record<string, unknown>>(STORAGE_KEY, {}).then((data) => {
+      if (data.editedSections) setEditedSections(data.editedSections as Record<string, string>);
+      if (data.editedLabels) setEditedLabels(data.editedLabels as Record<string, string>);
+      if (data.editedNames) setEditedNames(data.editedNames as Record<string, string>);
+      if (data.customSections) setCustomSections(data.customSections as Record<string, TemplateSection[]>);
+      if (data.removedSections) setRemovedSections(data.removedSections as Record<string, Record<number, boolean>>);
+      if (data.verbosity) setVerbosity(data.verbosity as Verbosity);
+      setStorageReady(true);
+    }).catch(() => {
+      console.log("No saved data found, starting fresh.");
+      setStorageReady(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -712,13 +694,13 @@ export default function RadiologyTemplatesPage() {
     }
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => {
-      saveToStorage({
-        editedSections,
-        editedLabels,
-        editedNames,
-        customSections,
-        removedSections,
-        verbosity,
+      setSaveStatus("saving");
+      const data = { editedSections, editedLabels, editedNames, customSections, removedSections, verbosity };
+      saveItem(STORAGE_KEY, data).then(() => {
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus(null), 1500);
+      }).catch(() => {
+        setSaveStatus(null);
       });
     }, 800);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
@@ -911,7 +893,7 @@ export default function RadiologyTemplatesPage() {
     setCustomSections({});
     setRemovedSections({});
     setEditingName(false);
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    removeItem(STORAGE_KEY).catch(() => {});
   };
   void resetAllData;
 

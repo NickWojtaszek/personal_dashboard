@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import AppsPage from './components/AppsPage';
 import EditAppModal from './components/EditAppModal';
@@ -22,6 +22,7 @@ import EditShoppingItemModal from './components/EditShoppingItemModal';
 import RadiologyTemplatesPage from './components/RadiologyTemplatesPage';
 import { INITIAL_APPS, APP_GROUPS, INITIAL_PROJECTS, PROJECT_GROUPS, INITIAL_PROPERTIES, PROPERTY_GROUPS, INITIAL_INSURANCE_POLICIES, INSURANCE_GROUPS, INITIAL_INVOICES, PURCHASE_INVOICE_CATEGORIES, INVOICE_LOCATIONS, INITIAL_VEHICLES, VEHICLE_GROUPS, INITIAL_SHOPPING_ITEMS, SHOPPING_CATEGORIES } from './constants';
 import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, InvoiceInfo, VehicleInfo, ShoppingItem, Page } from './types';
+import { loadAllItems, saveAllItems } from './lib/storage';
 import { arrayMove } from '@dnd-kit/sortable';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -88,56 +89,50 @@ const App: React.FC = () => {
         localStorage.setItem('app-theme', theme);
     }, [theme]);
 
-    // Load data from localStorage on mount
+    // Track whether initial load is complete to avoid saving defaults back
+    const dataLoadedRef = useRef(false);
+
+    // Storage key mapping
+    const STORAGE_KEYS = {
+        apps: 'launcher-apps',
+        appGroups: 'launcher-app-groups',
+        projects: 'launcher-projects',
+        projectGroups: 'launcher-project-groups',
+        properties: 'launcher-properties',
+        propertyGroups: 'launcher-property-groups',
+        insurance: 'launcher-insurance',
+        insuranceGroups: 'launcher-insurance-groups',
+        invoices: 'launcher-invoices',
+        invoiceGroups: 'launcher-invoice-groups',
+        invoiceLocations: 'launcher-invoice-locations',
+        vehicles: 'launcher-vehicles',
+        vehicleGroups: 'launcher-vehicle-groups',
+        shoppingItems: 'launcher-shopping-items',
+        shoppingCategories: 'launcher-shopping-categories',
+    } as const;
+
+    // Load data from storage on mount (Supabase-first, localStorage fallback)
     useEffect(() => {
-        try {
-            const storedApps = localStorage.getItem('launcher-apps');
-            setApps(storedApps ? JSON.parse(storedApps) : INITIAL_APPS);
-
-            const storedAppGroups = localStorage.getItem('launcher-app-groups');
-            setAppGroups(storedAppGroups ? JSON.parse(storedAppGroups) : APP_GROUPS);
-
-            const storedProjects = localStorage.getItem('launcher-projects');
-            setProjects(storedProjects ? JSON.parse(storedProjects) : INITIAL_PROJECTS);
-            
-            const storedGroups = localStorage.getItem('launcher-project-groups');
-            setProjectGroups(storedGroups ? JSON.parse(storedGroups) : PROJECT_GROUPS);
-
-            const storedProperties = localStorage.getItem('launcher-properties');
-            setProperties(storedProperties ? JSON.parse(storedProperties) : INITIAL_PROPERTIES);
-
-            const storedPropertyGroups = localStorage.getItem('launcher-property-groups');
-            setPropertyGroups(storedPropertyGroups ? JSON.parse(storedPropertyGroups) : PROPERTY_GROUPS);
-
-            const storedInsurance = localStorage.getItem('launcher-insurance');
-            setInsurancePolicies(storedInsurance ? JSON.parse(storedInsurance) : INITIAL_INSURANCE_POLICIES);
-            
-            const storedInsuranceGroups = localStorage.getItem('launcher-insurance-groups');
-            setInsuranceGroups(storedInsuranceGroups ? JSON.parse(storedInsuranceGroups) : INSURANCE_GROUPS);
-
-            const storedInvoices = localStorage.getItem('launcher-invoices');
-            setInvoices(storedInvoices ? JSON.parse(storedInvoices) : INITIAL_INVOICES);
-            
-            const storedInvoiceGroups = localStorage.getItem('launcher-invoice-groups');
-            setInvoiceGroups(storedInvoiceGroups ? JSON.parse(storedInvoiceGroups) : PURCHASE_INVOICE_CATEGORIES);
-            
-            const storedInvoiceLocations = localStorage.getItem('launcher-invoice-locations');
-            setInvoiceLocations(storedInvoiceLocations ? JSON.parse(storedInvoiceLocations) : INVOICE_LOCATIONS);
-            
-            const storedVehicles = localStorage.getItem('launcher-vehicles');
-            setVehicles(storedVehicles ? JSON.parse(storedVehicles) : INITIAL_VEHICLES);
-            
-            const storedVehicleGroups = localStorage.getItem('launcher-vehicle-groups');
-            setVehicleGroups(storedVehicleGroups ? JSON.parse(storedVehicleGroups) : VEHICLE_GROUPS);
-
-            const storedShoppingItems = localStorage.getItem('launcher-shopping-items');
-            setShoppingItems(storedShoppingItems ? JSON.parse(storedShoppingItems) : INITIAL_SHOPPING_ITEMS);
-
-            const storedShoppingCategories = localStorage.getItem('launcher-shopping-categories');
-            setShoppingCategories(storedShoppingCategories ? JSON.parse(storedShoppingCategories) : SHOPPING_CATEGORIES);
-
-        } catch (error) {
-            console.error("Failed to load data from localStorage", error);
+        const allKeys = Object.values(STORAGE_KEYS);
+        loadAllItems(allKeys).then((data) => {
+            setApps((data.get(STORAGE_KEYS.apps) as AppInfo[]) || INITIAL_APPS);
+            setAppGroups((data.get(STORAGE_KEYS.appGroups) as string[]) || APP_GROUPS);
+            setProjects((data.get(STORAGE_KEYS.projects) as ProjectInfo[]) || INITIAL_PROJECTS);
+            setProjectGroups((data.get(STORAGE_KEYS.projectGroups) as string[]) || PROJECT_GROUPS);
+            setProperties((data.get(STORAGE_KEYS.properties) as PropertyInfo[]) || INITIAL_PROPERTIES);
+            setPropertyGroups((data.get(STORAGE_KEYS.propertyGroups) as string[]) || PROPERTY_GROUPS);
+            setInsurancePolicies((data.get(STORAGE_KEYS.insurance) as InsuranceInfo[]) || INITIAL_INSURANCE_POLICIES);
+            setInsuranceGroups((data.get(STORAGE_KEYS.insuranceGroups) as string[]) || INSURANCE_GROUPS);
+            setInvoices((data.get(STORAGE_KEYS.invoices) as InvoiceInfo[]) || INITIAL_INVOICES);
+            setInvoiceGroups((data.get(STORAGE_KEYS.invoiceGroups) as string[]) || PURCHASE_INVOICE_CATEGORIES);
+            setInvoiceLocations((data.get(STORAGE_KEYS.invoiceLocations) as string[]) || INVOICE_LOCATIONS);
+            setVehicles((data.get(STORAGE_KEYS.vehicles) as VehicleInfo[]) || INITIAL_VEHICLES);
+            setVehicleGroups((data.get(STORAGE_KEYS.vehicleGroups) as string[]) || VEHICLE_GROUPS);
+            setShoppingItems((data.get(STORAGE_KEYS.shoppingItems) as ShoppingItem[]) || INITIAL_SHOPPING_ITEMS);
+            setShoppingCategories((data.get(STORAGE_KEYS.shoppingCategories) as string[]) || SHOPPING_CATEGORIES);
+            dataLoadedRef.current = true;
+        }).catch((error) => {
+            console.error("Failed to load data from storage", error);
             setApps(INITIAL_APPS);
             setAppGroups(APP_GROUPS);
             setProjects(INITIAL_PROJECTS);
@@ -153,30 +148,35 @@ const App: React.FC = () => {
             setVehicleGroups(VEHICLE_GROUPS);
             setShoppingItems(INITIAL_SHOPPING_ITEMS);
             setShoppingCategories(SHOPPING_CATEGORIES);
-        }
+            dataLoadedRef.current = true;
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Save data to localStorage on change
+    // Save data to storage on change (localStorage + Supabase)
     useEffect(() => {
-        try {
-            if (apps.length > 0) localStorage.setItem('launcher-apps', JSON.stringify(apps));
-            if (appGroups.length > 0) localStorage.setItem('launcher-app-groups', JSON.stringify(appGroups));
-            if (projects.length > 0) localStorage.setItem('launcher-projects', JSON.stringify(projects));
-            if(projectGroups.length > 0) localStorage.setItem('launcher-project-groups', JSON.stringify(projectGroups));
-            if (properties.length > 0) localStorage.setItem('launcher-properties', JSON.stringify(properties));
-            if (propertyGroups.length > 0) localStorage.setItem('launcher-property-groups', JSON.stringify(propertyGroups));
-            if (insurancePolicies.length > 0) localStorage.setItem('launcher-insurance', JSON.stringify(insurancePolicies));
-            if (insuranceGroups.length > 0) localStorage.setItem('launcher-insurance-groups', JSON.stringify(insuranceGroups));
-            if (invoices.length > 0) localStorage.setItem('launcher-invoices', JSON.stringify(invoices));
-            if (invoiceGroups.length > 0) localStorage.setItem('launcher-invoice-groups', JSON.stringify(invoiceGroups));
-            if (invoiceLocations.length > 0) localStorage.setItem('launcher-invoice-locations', JSON.stringify(invoiceLocations));
-            if (vehicles.length > 0) localStorage.setItem('launcher-vehicles', JSON.stringify(vehicles));
-            if (vehicleGroups.length > 0) localStorage.setItem('launcher-vehicle-groups', JSON.stringify(vehicleGroups));
-            localStorage.setItem('launcher-shopping-items', JSON.stringify(shoppingItems));
-            if (shoppingCategories.length > 0) localStorage.setItem('launcher-shopping-categories', JSON.stringify(shoppingCategories));
-        } catch (error) {
-            console.error("Failed to save data to localStorage", error);
-        }
+        if (!dataLoadedRef.current) return; // Don't save until initial load completes
+
+        const items: Record<string, unknown> = {};
+        if (apps.length > 0) items[STORAGE_KEYS.apps] = apps;
+        if (appGroups.length > 0) items[STORAGE_KEYS.appGroups] = appGroups;
+        if (projects.length > 0) items[STORAGE_KEYS.projects] = projects;
+        if (projectGroups.length > 0) items[STORAGE_KEYS.projectGroups] = projectGroups;
+        if (properties.length > 0) items[STORAGE_KEYS.properties] = properties;
+        if (propertyGroups.length > 0) items[STORAGE_KEYS.propertyGroups] = propertyGroups;
+        if (insurancePolicies.length > 0) items[STORAGE_KEYS.insurance] = insurancePolicies;
+        if (insuranceGroups.length > 0) items[STORAGE_KEYS.insuranceGroups] = insuranceGroups;
+        if (invoices.length > 0) items[STORAGE_KEYS.invoices] = invoices;
+        if (invoiceGroups.length > 0) items[STORAGE_KEYS.invoiceGroups] = invoiceGroups;
+        if (invoiceLocations.length > 0) items[STORAGE_KEYS.invoiceLocations] = invoiceLocations;
+        if (vehicles.length > 0) items[STORAGE_KEYS.vehicles] = vehicles;
+        if (vehicleGroups.length > 0) items[STORAGE_KEYS.vehicleGroups] = vehicleGroups;
+        items[STORAGE_KEYS.shoppingItems] = shoppingItems;
+        if (shoppingCategories.length > 0) items[STORAGE_KEYS.shoppingCategories] = shoppingCategories;
+
+        saveAllItems(items).catch((error) => {
+            console.error("Failed to save data to storage", error);
+        });
     }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, shoppingItems, shoppingCategories]);
 
 
