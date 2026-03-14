@@ -1218,7 +1218,7 @@ export default function RadiologyTemplatesPage() {
   }, [editingName]);
 
   return (
-    <div style={{ display: "flex", height: "calc(100vh - 64px)", fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif", background: "#0B0F1A", color: "#CBD5E1", overflow: "hidden" }}>
+    <div style={{ display: "flex", height: "100%", fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif", background: "#0B0F1A", color: "#CBD5E1", overflow: "hidden" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
       {!storageReady ? (

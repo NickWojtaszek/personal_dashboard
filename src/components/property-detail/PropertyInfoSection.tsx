@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import type { PropertyInfo } from '../../types';
+import type { PropertyInfo, PropertyCountry } from '../../types';
 import { BedIcon, BathIcon, CarIcon, BoxIcon, BuildingIcon, ListIcon, EditIcon, SaveIcon } from './Icons';
+import { COUNTRY_OPTIONS, getPropertyLabels } from '../../lib/countryLabels';
 
 interface PropertyInfoSectionProps {
     property: PropertyInfo;
@@ -12,18 +13,18 @@ interface PropertyInfoSectionProps {
 }
 
 const DetailItem: React.FC<{ label: string; value?: string | number | null; children?: React.ReactNode; }> = ({ label, value, children }) => (
-    <div>
+    <div className="min-w-0">
         <p className="text-sm text-slate-500 dark:text-gray-400">{label}</p>
-        {value ? <p className="font-medium text-slate-800 dark:text-gray-200">{value}</p> : children}
+        {value ? <p className="font-medium text-slate-800 dark:text-gray-200 break-words">{value}</p> : children || <p className="text-sm text-slate-400 dark:text-gray-500">N/A</p>}
     </div>
 );
 
 const Section: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode; }> = ({ title, icon, children }) => (
-    <div>
+    <div className="min-w-0 overflow-hidden">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-gray-300 mb-3 uppercase tracking-wider">
             {icon} {title}
         </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 min-w-0 overflow-hidden">
             {children}
         </div>
     </div>
@@ -78,6 +79,17 @@ const PropertyInfoSection: React.FC<PropertyInfoSectionProps> = ({ property, isE
                      <Section title="Overview" icon={<ListIcon />}>
                         <div><Label htmlFor="overview.address">Full Address</Label><Input type="text" name="overview.address" value={editedData.overview?.address || ''} onChange={commonInputChange} /></div>
                         <div><Label htmlFor="overview.propertyType">Property Type</Label><Input type="text" name="overview.propertyType" value={editedData.overview?.propertyType || ''} onChange={commonInputChange} /></div>
+                        <div>
+                            <Label>Country</Label>
+                            <select
+                                value={editedData.country || ''}
+                                onChange={e => handleNestedChange('country', e.target.value || undefined)}
+                                className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition"
+                            >
+                                <option value="">Select country...</option>
+                                {COUNTRY_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                            </select>
+                        </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 col-span-full">
                             <div><Label>Beds</Label><Input type="number" name="overview.configuration.beds" value={editedData.overview?.configuration?.beds || ''} onChange={numericInputChange} /></div>
                             <div><Label>Baths</Label><Input type="number" name="overview.configuration.baths" value={editedData.overview?.configuration?.baths || ''} onChange={numericInputChange} /></div>
@@ -104,7 +116,7 @@ const PropertyInfoSection: React.FC<PropertyInfoSectionProps> = ({ property, isE
 
     const { overview, details } = property;
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <h2 className="text-xl font-bold flex items-center gap-3"><BuildingIcon /> Property Info</h2>
                 <button
@@ -119,8 +131,11 @@ const PropertyInfoSection: React.FC<PropertyInfoSectionProps> = ({ property, isE
                 <Section title="Overview" icon={<ListIcon />}>
                     <DetailItem label="Address" value={overview?.address} />
                     <DetailItem label="Property Type" value={overview?.propertyType} />
+                    {property.country && (
+                        <DetailItem label="Country" value={COUNTRY_OPTIONS.find(c => c.value === property.country)?.label || property.country} />
+                    )}
                     <DetailItem label="Configuration">
-                        <div className="flex items-center gap-4 text-slate-800 dark:text-gray-200 font-medium">
+                        <div className="flex flex-wrap items-center gap-4 text-slate-800 dark:text-gray-200 font-medium">
                             <span className="flex items-center gap-1"><BedIcon /> {overview?.configuration?.beds ?? 'N/A'}</span>
                             <span className="flex items-center gap-1"><BathIcon /> {overview?.configuration?.baths ?? 'N/A'}</span>
                             <span className="flex items-center gap-1"><CarIcon /> {overview?.configuration?.parking ?? 'N/A'}</span>
@@ -131,13 +146,14 @@ const PropertyInfoSection: React.FC<PropertyInfoSectionProps> = ({ property, isE
                 <Section title="Details" icon={<ListIcon />}>
                     <DetailItem label="Complex/Building Name" value={details?.complexName} />
                     <DetailItem label="Unit/Lot Number" value={details?.unitLotNumber} />
-                    <DetailItem label="Property Features">
+                    <div className="col-span-2 min-w-0">
+                        <p className="text-sm text-slate-500 dark:text-gray-400">Property Features</p>
                         {details?.features && details.features.length > 0 ? (
-                             <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300">
-                                {details.features.map((feature, i) => <li key={i}>{feature}</li>)}
+                             <ul className="list-disc list-inside text-sm text-slate-600 dark:text-slate-300 break-words overflow-hidden">
+                                {details.features.map((feature, i) => <li key={i} className="break-words">{feature}</li>)}
                             </ul>
-                        ) : <p className="text-sm text-slate-500 dark:text-gray-400">Not specified.</p>}
-                    </DetailItem>
+                        ) : <p className="text-sm text-slate-400 dark:text-gray-500">Not specified.</p>}
+                    </div>
                 </Section>
             </div>
         </div>

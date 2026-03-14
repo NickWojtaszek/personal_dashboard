@@ -11,6 +11,8 @@ pdfjs.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.5.136/build/p
 
 interface AIAssistantSectionProps {
     onDataExtracted: (data: Partial<InsuranceInfo> & { document?: Document }) => void;
+    pendingFile?: File | null;
+    onPendingFileConsumed?: () => void;
 }
 
 const insuranceSchema = {
@@ -19,7 +21,7 @@ const insuranceSchema = {
         policyholder: { type: Type.STRING, description: "The full name of the policyholder.", nullable: true },
         policyType: { type: Type.STRING, description: "The type of insurance policy (e.g., Home & Contents, Comprehensive Car).", nullable: true },
         policyNumber: { type: Type.STRING, description: "The unique identifier for the policy.", nullable: true },
-        provider: { type: Type.STRING, description: "The name of the insurance company or provider.", nullable: true },
+        provider: { type: Type.STRING, description: "The customer-facing brand name of the insurance provider (e.g. 'Virgin Money', 'Terri Scheer', 'NRMA'), not the underlying product issuer or ABN holder.", nullable: true },
         coverageAmount: { type: Type.NUMBER, description: "The total coverage amount.", nullable: true },
         premiumAmount: { type: Type.NUMBER, description: "The amount for a single premium payment.", nullable: true },
         paymentFrequency: { 
@@ -31,6 +33,7 @@ const insuranceSchema = {
         deductible: { type: Type.NUMBER, description: "The deductible or excess amount.", nullable: true },
         startDate: { type: Type.STRING, description: "The policy start date in YYYY-MM-DD format.", nullable: true },
         endDate: { type: Type.STRING, description: "The policy end date in YYYY-MM-DD format.", nullable: true },
+        currency: { type: Type.STRING, enum: ['GBP', 'AUD', 'USD', 'EUR', 'PLN'], description: "The currency code for all monetary values (e.g., AUD for Australian dollars, GBP for British pounds).", nullable: true },
         coverageSummary: { type: Type.STRING, description: "A brief summary of what the policy covers.", nullable: true },
         notes: { type: Type.STRING, description: "Any other relevant notes or details from the policy text.", nullable: true },
     },
@@ -46,12 +49,24 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     return window.btoa(binary);
 }
 
-const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted }) => {
+const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted, pendingFile, onPendingFileConsumed }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const pendingFileProcessed = React.useRef(false);
+
+    // Auto-load pending file from new policy flow; extraction triggered via shouldAutoExtract ref
+    const shouldAutoExtract = React.useRef(false);
+    useEffect(() => {
+        if (pendingFile && !pendingFileProcessed.current) {
+            pendingFileProcessed.current = true;
+            shouldAutoExtract.current = true;
+            setFile(pendingFile);
+            onPendingFileConsumed?.();
+        }
+    }, [pendingFile, onPendingFileConsumed]);
 
     const handleFileChange = (files: FileList | null) => {
         if (files && files.length > 0) {
@@ -86,7 +101,7 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
         handleFileChange(e.dataTransfer.files);
     }, []);
 
-    const handleExtract = async () => {
+    const handleExtract = useCallback(async () => {
         if (!file) {
             setError("Please select a PDF file first.");
             return;
@@ -120,12 +135,21 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
             
             // 3. Send text to Gemini API
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-            const prompt = `From the following insurance policy text, extract the specified details. Pay close attention to dates and currency amounts. Format all dates as 'YYYY-MM-DD'. All monetary values should be numbers without currency symbols. If a piece of information is not present, omit the key from the final JSON object. Here is the policy text:\n\n${pdfText}`;
-            
+            const prompt = `Extract insurance policy details from the text below. Rules:
+- For "provider": use the customer-facing brand name (e.g. "Virgin Money", "Terri Scheer"), NOT the underlying product issuer or ABN holder.
+- Format all dates as YYYY-MM-DD.
+- All monetary values must be plain numbers without currency symbols.
+- If a field cannot be confidently determined from the text, return null for that field.
+- For "deductible": use the main/basic excess amount.
+
+Policy text:
+${pdfText}`;
+
             const response = await ai.models.generateContent({
                 model: "gemini-2.5-flash",
                 contents: prompt,
                 config: {
+                    temperature: 0.1,
                     responseMimeType: "application/json",
                     responseSchema: insuranceSchema,
                 },
@@ -147,7 +171,16 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
         } finally {
             setIsLoading(false);
         }
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [file, onDataExtracted]);
+
+    // Auto-trigger extraction when file is loaded from new policy flow
+    useEffect(() => {
+        if (file && shouldAutoExtract.current && !isLoading) {
+            shouldAutoExtract.current = false;
+            handleExtract();
+        }
+    }, [file, handleExtract, isLoading]);
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">

@@ -1,7 +1,9 @@
 import { supabase, isSupabaseEnabled } from './supabase';
+import { stripBlobs, rehydrateBlobs } from './blobBridge';
 
 /**
  * Unified storage layer: Supabase-first with localStorage fallback.
+ * Large binary data (base64 PDFs) is automatically offloaded to IndexedDB.
  *
  * Supabase table schema (run this SQL in your Supabase dashboard):
  *
@@ -24,11 +26,23 @@ import { supabase, isSupabaseEnabled } from './supabase';
 
 const SUPABASE_TABLE = 'app_data';
 
+/** Keys that contain Document objects with potential base64 blob data. */
+const BLOB_KEYS = new Set([
+  'launcher-properties',
+  'launcher-insurance',
+  'launcher-invoices',
+  'launcher-vehicles',
+  'launcher-correspondence-store',
+]);
+
 /**
  * Load a value by key. Tries Supabase first, falls back to localStorage.
  * On Supabase success, also updates localStorage cache.
+ * Rehydrates blobs from IndexedDB for keys that contain documents.
  */
 export async function loadItem<T>(key: string, fallback: T): Promise<T> {
+  let value: T | undefined;
+
   // Try Supabase first
   if (isSupabaseEnabled() && supabase) {
     try {
@@ -43,7 +57,7 @@ export async function loadItem<T>(key: string, fallback: T): Promise<T> {
         try {
           localStorage.setItem(key, JSON.stringify(data.value));
         } catch { /* localStorage full or unavailable */ }
-        return data.value as T;
+        value = data.value as T;
       }
     } catch {
       // Supabase unavailable, fall through to localStorage
@@ -51,22 +65,49 @@ export async function loadItem<T>(key: string, fallback: T): Promise<T> {
   }
 
   // Fallback to localStorage
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) return JSON.parse(raw) as T;
-  } catch { /* corrupted data */ }
+  if (value === undefined) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) value = JSON.parse(raw) as T;
+    } catch { /* corrupted data */ }
+  }
 
-  return fallback;
+  if (value === undefined) return fallback;
+
+  // Rehydrate blobs from IndexedDB
+  if (BLOB_KEYS.has(key)) {
+    try {
+      value = await rehydrateBlobs(value);
+    } catch (e) {
+      console.warn(`Failed to rehydrate blobs for '${key}':`, e);
+    }
+  }
+
+  return value;
 }
 
 /**
  * Save a value by key. Writes to both localStorage (sync) and Supabase (async).
+ * Strips blobs to IndexedDB for keys that contain documents.
  */
 export async function saveItem<T>(key: string, value: T): Promise<void> {
-  // Always write to localStorage immediately (fast, offline-capable)
+  let toStore: T = value;
+
+  // Strip blobs to IndexedDB
+  if (BLOB_KEYS.has(key)) {
+    try {
+      toStore = await stripBlobs(key, value);
+    } catch (e) {
+      console.warn(`Failed to strip blobs for '${key}':`, e);
+    }
+  }
+
+  // Write to localStorage
   try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch { /* localStorage full */ }
+    localStorage.setItem(key, JSON.stringify(toStore));
+  } catch (e) {
+    console.warn(`Failed to save '${key}' to localStorage (likely quota exceeded):`, e);
+  }
 
   // Write to Supabase in the background
   if (isSupabaseEnabled() && supabase) {
@@ -74,7 +115,7 @@ export async function saveItem<T>(key: string, value: T): Promise<void> {
       await supabase
         .from(SUPABASE_TABLE)
         .upsert(
-          { key, value, updated_at: new Date().toISOString() },
+          { key, value: toStore, updated_at: new Date().toISOString() },
           { onConflict: 'key' }
         );
     } catch (e) {
@@ -102,6 +143,7 @@ export async function removeItem(key: string): Promise<void> {
  * Load all app data keys at once (batch load on mount).
  * Returns a Map of key -> value. Tries Supabase first for all keys,
  * falls back to localStorage per-key.
+ * Rehydrates blobs from IndexedDB for keys that contain documents.
  */
 export async function loadAllItems(keys: string[]): Promise<Map<string, unknown>> {
   const result = new Map<string, unknown>();
@@ -139,23 +181,57 @@ export async function loadAllItems(keys: string[]): Promise<Map<string, unknown>
     }
   }
 
+  // Rehydrate blobs for keys that contain documents
+  for (const key of keys) {
+    if (BLOB_KEYS.has(key) && result.has(key)) {
+      try {
+        const rehydrated = await rehydrateBlobs(result.get(key));
+        result.set(key, rehydrated);
+      } catch (e) {
+        console.warn(`Failed to rehydrate blobs for '${key}':`, e);
+      }
+    }
+  }
+
   return result;
 }
 
 /**
  * Save multiple key-value pairs at once (batch save).
+ * Strips blobs to IndexedDB for keys that contain documents.
  */
 export async function saveAllItems(items: Record<string, unknown>): Promise<void> {
-  // Write all to localStorage immediately
+  const toStore: Record<string, unknown> = {};
+
+  // Strip blobs for keys that contain documents
   for (const [key, value] of Object.entries(items)) {
+    if (BLOB_KEYS.has(key)) {
+      try {
+        toStore[key] = await stripBlobs(key, value);
+      } catch (e) {
+        console.warn(`Failed to strip blobs for '${key}':`, e);
+        toStore[key] = value;
+      }
+    } else {
+      toStore[key] = value;
+    }
+  }
+
+  // Write all to localStorage
+  const localStorageErrors: string[] = [];
+  for (const [key, value] of Object.entries(toStore)) {
     try {
       localStorage.setItem(key, JSON.stringify(value));
-    } catch { /* ignore */ }
+    } catch (e) {
+      const msg = `Failed to save '${key}' to localStorage: ${(e as Error)?.message || e}`;
+      console.warn(msg);
+      localStorageErrors.push(msg);
+    }
   }
 
   // Batch upsert to Supabase
   if (isSupabaseEnabled() && supabase) {
-    const rows = Object.entries(items).map(([key, value]) => ({
+    const rows = Object.entries(toStore).map(([key, value]) => ({
       key,
       value,
       updated_at: new Date().toISOString(),
@@ -167,6 +243,15 @@ export async function saveAllItems(items: Record<string, unknown>): Promise<void
         .upsert(rows, { onConflict: 'key' });
     } catch (e) {
       console.warn('Failed to batch save to Supabase:', e);
+      if (localStorageErrors.length > 0) {
+        // Both storage backends failed — data loss risk
+        throw new Error(`Storage save failed — neither localStorage nor Supabase could persist your data. ${localStorageErrors[0]}`);
+      }
     }
+  }
+
+  // If Supabase isn't available and localStorage failed, alert the user
+  if (!isSupabaseEnabled() && localStorageErrors.length > 0) {
+    throw new Error(`localStorage quota likely exceeded. ${localStorageErrors[0]}`);
   }
 }

@@ -177,9 +177,19 @@ const EditInsuranceModal: React.FC<EditInsuranceModalProps> = ({ policy, onSave,
                                     </Select>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
                                 <div><Label htmlFor="coverageAmount">Coverage Amount</Label><Input type="number" name="coverageAmount" value={formData.coverageAmount || ''} onChange={handleNumberChange} step="1" /></div>
                                 <div><Label htmlFor="deductible">Deductible/Excess</Label><Input type="number" name="deductible" value={formData.deductible || ''} onChange={handleNumberChange} step="1" /></div>
+                                <div>
+                                    <Label htmlFor="currency">Currency</Label>
+                                    <Select name="currency" value={formData.currency || 'GBP'} onChange={handleInputChange}>
+                                        <option value="GBP">GBP (£)</option>
+                                        <option value="AUD">AUD (A$)</option>
+                                        <option value="USD">USD ($)</option>
+                                        <option value="EUR">EUR (€)</option>
+                                        <option value="PLN">PLN (zł)</option>
+                                    </Select>
+                                </div>
                             </div>
                         </div>
 

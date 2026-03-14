@@ -2,6 +2,9 @@ import React, { forwardRef } from 'react';
 import type { VehicleInfo } from '../types';
 import { getColorForGroup } from '../constants';
 import { formatDistanceToNow } from './general/dateUtils';
+import PolicyProgressBar from './insurance-detail/PolicyProgressBar';
+
+const CURRENCY_SYMBOLS: Record<string, string> = { GBP: '\u00a3', USD: '$', AUD: 'A$', EUR: '\u20ac', PLN: 'z\u0142' };
 
 interface VehicleCardProps {
     vehicle: VehicleInfo;
@@ -19,7 +22,20 @@ const GripVerticalIcon = (props: React.SVGProps<SVGSVGElement>) => (<svg xmlns="
 
 const CardContent: React.FC<{ vehicle: VehicleInfo }> = ({ vehicle }) => {
     const expiryDate = new Date(vehicle.expiryDate);
-    
+    const now = new Date();
+    const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const sym = CURRENCY_SYMBOLS[vehicle.currency || 'AUD'] || '$';
+
+    let statusColor = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    let statusText = 'Current';
+    if (daysUntilExpiry <= 0) {
+        statusColor = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+        statusText = 'Expired';
+    } else if (daysUntilExpiry <= 30) {
+        statusColor = 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400';
+        statusText = 'Due Soon';
+    }
+
     return (
         <div className="flex flex-col p-6 h-full">
             <div className="flex items-start justify-between mb-2">
@@ -27,21 +43,42 @@ const CardContent: React.FC<{ vehicle: VehicleInfo }> = ({ vehicle }) => {
                     <h3 className="font-semibold text-slate-800 dark:text-gray-200 group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">{vehicle.name}</h3>
                     <p className="text-sm text-slate-500 dark:text-gray-400">
                         {vehicle.year ? `${vehicle.year} ` : ''}{vehicle.make ? `${vehicle.make} ` : ''}{vehicle.model || ''}
+                        {vehicle.bodyType ? ` ${vehicle.bodyType}` : ''}
                     </p>
                 </div>
-                <div className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold font-mono tracking-wider">{vehicle.state}</div>
-            </div>
-            
-            <div className="flex-grow mb-4">
-                <p className="text-xl font-bold font-mono text-slate-600 dark:text-gray-400 my-2 tracking-wider bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg text-center">{vehicle.rego}</p>
-                <p className="text-sm text-slate-500 dark:text-gray-400">
-                    Expires: {expiryDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                    {' '}(<span className="font-semibold text-brand-primary dark:text-brand-secondary">{formatDistanceToNow(expiryDate)}</span>)
-                </p>
+                <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${statusColor}`}>{statusText}</span>
+                    <div className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold font-mono tracking-wider">{vehicle.state}</div>
+                </div>
             </div>
 
+            <div className="flex-grow mb-3">
+                <p className="text-xl font-bold font-mono text-slate-600 dark:text-gray-400 my-2 tracking-wider bg-slate-100 dark:bg-slate-700/50 p-2 rounded-lg text-center">{vehicle.rego}</p>
+
+                <div className="flex items-center justify-between text-sm text-slate-500 dark:text-gray-400">
+                    <span>
+                        Expires: {expiryDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {' '}(<span className="font-semibold text-brand-primary dark:text-brand-secondary">{formatDistanceToNow(expiryDate)}</span>)
+                    </span>
+                    {typeof vehicle.totalAmount === 'number' && (
+                        <span className="font-semibold text-slate-700 dark:text-gray-300">{sym}{vehicle.totalAmount.toFixed(2)}</span>
+                    )}
+                </div>
+
+                {vehicle.ctpInsurer && (
+                    <p className="text-xs text-slate-400 dark:text-gray-500 mt-1">CTP: {vehicle.ctpInsurer} {vehicle.term ? `\u00b7 ${vehicle.term}` : ''}</p>
+                )}
+            </div>
+
+            {/* Progress bar */}
+            {vehicle.startDate && vehicle.expiryDate && (
+                <div className="mb-3">
+                    <PolicyProgressBar startDate={vehicle.startDate} endDate={vehicle.expiryDate} variant="compact" />
+                </div>
+            )}
+
             {vehicle.groups && vehicle.groups.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-auto pt-4 border-t border-slate-100 dark:border-slate-700">
+                <div className="flex flex-wrap gap-2 mt-auto pt-3 border-t border-slate-100 dark:border-slate-700">
                     {vehicle.groups.map(group => (
                         <span key={group} className={`px-2 py-1 text-xs rounded-full font-medium ${getColorForGroup(group)}`}>{group}</span>
                     ))}
@@ -54,7 +91,7 @@ const CardContent: React.FC<{ vehicle: VehicleInfo }> = ({ vehicle }) => {
 const VehicleCard = forwardRef<HTMLDivElement, VehicleCardProps>(({ vehicle, isAdminMode, onEdit, onSelect, listeners, style, isDragging, ...rest }, ref) => {
     const baseClasses = "relative group flex flex-col h-full bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden transition-all duration-300 ease-in-out border border-slate-200 dark:border-slate-700 text-left w-full";
     const draggingClasses = isDragging ? "opacity-70 shadow-2xl scale-105" : "";
-    
+
     const cardContent = <CardContent vehicle={vehicle} />;
 
     if (isAdminMode) {

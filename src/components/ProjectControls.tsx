@@ -15,6 +15,7 @@ interface ProjectControlsProps {
     onNewProject: () => void;
     projectCount: number;
     sortOptions?: { value: string; label: string }[];
+    onImport?: () => void;
 }
 
 const SearchIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-400 dark:text-gray-500"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>);
@@ -25,7 +26,7 @@ const ProjectControls: React.FC<ProjectControlsProps> = ({
     selectedSort, onSortChange,
     selectedGroup, onGroupChange,
     groups, isAdminMode, onNewProject, projectCount,
-    sortOptions
+    sortOptions, onImport
 }) => {
     const commonSelectClasses = "bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition text-sm";
     
@@ -33,11 +34,19 @@ const ProjectControls: React.FC<ProjectControlsProps> = ({
         <div className="space-y-4">
              <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
                  <h2 className="text-2xl font-bold">{title} ({projectCount})</h2>
-                  <div title={!isAdminMode ? "Enable Admin Mode to add items" : ""}>
+                  <div className="flex gap-2" title={!isAdminMode ? "Enable Admin Mode to add items" : ""}>
+                    {onImport && (
+                        <button
+                            onClick={onImport}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
+                            Import
+                        </button>
+                    )}
                     <button
                         onClick={onNewProject}
-                        disabled={!isAdminMode}
-                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand-primary text-white font-semibold hover:bg-opacity-90 transition-colors disabled:bg-slate-400 dark:disabled:bg-slate-600 disabled:cursor-not-allowed"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand-primary text-white font-semibold hover:bg-opacity-90 transition-colors"
                     >
                         <PlusIcon />
                         New Item

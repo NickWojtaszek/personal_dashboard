@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { InsuranceInfo } from '../../types';
 import { parseRenewalDate, formatDistanceToNow } from '../general/dateUtils';
 import { BellIcon } from '../general/Icons';
+import PolicyProgressBar from './PolicyProgressBar';
 
 interface UpcomingRenewalsProps {
     policies: InsuranceInfo[];
@@ -42,15 +43,18 @@ const UpcomingRenewals: React.FC<UpcomingRenewalsProps> = ({ policies }) => {
                 {upcomingRenewals.length > 0 ? (
                     upcomingRenewals.map(policy => (
                         <div key={policy.id} className={`p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-l-4 border-slate-200 dark:border-slate-700 ${getUrgencyClasses(policy.renewalDateObj!)}`}>
-                            <div className="flex justify-between items-start gap-3">
-                                <div>
-                                    <p className="font-semibold text-slate-800 dark:text-gray-200">{policy.name}</p>
-                                    <p className="text-sm text-slate-500 dark:text-gray-400">{policy.provider}</p>
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-start gap-3">
+                                    <div>
+                                        <p className="font-semibold text-slate-800 dark:text-gray-200">{policy.name}</p>
+                                        <p className="text-sm text-slate-500 dark:text-gray-400">{policy.provider}</p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                        <p className="font-semibold text-brand-primary dark:text-brand-secondary text-sm">{formatDistanceToNow(policy.renewalDateObj!)}</p>
+                                        <p className="text-xs text-slate-400 dark:text-gray-500">{policy.renewalDate}</p>
+                                    </div>
                                 </div>
-                                <div className="text-right flex-shrink-0">
-                                    <p className="font-semibold text-brand-primary dark:text-brand-secondary text-sm">{formatDistanceToNow(policy.renewalDateObj!)}</p>
-                                    <p className="text-xs text-slate-400 dark:text-gray-500">{policy.renewalDate}</p>
-                                </div>
+                                <PolicyProgressBar startDate={policy.startDate} endDate={policy.endDate} variant="compact" />
                             </div>
                         </div>
                     ))

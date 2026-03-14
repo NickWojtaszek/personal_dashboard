@@ -43,7 +43,7 @@ const InvoiceRow = React.forwardRef<HTMLTableRowElement, InvoiceRowProps>(({ inv
                 <div className="text-sm text-slate-500 dark:text-gray-400">{new Date(invoice.purchaseDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-800 dark:text-gray-200">
-                £{invoice.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                {({ GBP: '\u00a3', USD: '$', AUD: 'A$', EUR: '\u20ac', PLN: 'z\u0142' })[invoice.currency || 'GBP'] || (invoice.currency ? `${invoice.currency} ` : '\u00a3')}{invoice.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                 <button onClick={() => onSelect(invoice.id)} className="text-brand-primary hover:text-brand-secondary disabled:text-slate-400 disabled:cursor-not-allowed" disabled={!invoice.document}>View PDF</button>

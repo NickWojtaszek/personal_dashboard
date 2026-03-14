@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import type { PropertyInfo, ServiceCharge, GroundRent } from '../../types';
 import { ReceiptPercentIcon, EditIcon, SaveIcon, TrashIcon, PlusIcon, ExternalLinkIcon } from './Icons';
 import { v4 as uuidv4 } from 'uuid';
+import { getPropertyLabels } from '../../lib/countryLabels';
 
 interface LeaseholdChargesSectionProps {
     property: PropertyInfo;
@@ -110,6 +111,8 @@ const LeaseholdChargesSection: React.FC<LeaseholdChargesSectionProps> = ({ prope
 
     const isUrl = (text: string) => text.startsWith('http://') || text.startsWith('https://');
 
+    const editLabels = getPropertyLabels(property.country);
+
     if (isEditing) {
         const serviceCharges = editedData?.leaseholdCharges?.serviceCharges || [];
         const groundRent = editedData?.leaseholdCharges?.groundRent || [];
@@ -117,11 +120,11 @@ const LeaseholdChargesSection: React.FC<LeaseholdChargesSectionProps> = ({ prope
         return (
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-brand-primary/50 dark:border-brand-secondary/50">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                    <h2 className="text-xl font-bold flex items-center gap-3"><ReceiptPercentIcon /> Editing Ground Rent & Service Charge</h2>
+                    <h2 className="text-xl font-bold flex items-center gap-3"><ReceiptPercentIcon /> Editing {editLabels.leaseholdSection}</h2>
                 </div>
                 <div className="p-6 space-y-6">
                     <div className="space-y-2">
-                        <h4 className="font-semibold">Service Charge History</h4>
+                        <h4 className="font-semibold">{editLabels.serviceCharge} History</h4>
                         {serviceCharges.map((charge) => (
                             <div key={charge.id} className="p-3 border border-slate-200 dark:border-slate-700 rounded-lg space-y-2">
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -136,11 +139,11 @@ const LeaseholdChargesSection: React.FC<LeaseholdChargesSectionProps> = ({ prope
                                 </div>
                             </div>
                         ))}
-                        <button type="button" onClick={() => addItem('serviceCharges')} className="mt-2 flex items-center gap-1 text-sm font-semibold text-brand-primary hover:underline"><PlusIcon /> Add Service Charge</button>
+                        <button type="button" onClick={() => addItem('serviceCharges')} className="mt-2 flex items-center gap-1 text-sm font-semibold text-brand-primary hover:underline"><PlusIcon /> Add {editLabels.serviceCharge}</button>
                     </div>
 
                     <div className="pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
-                        <h4 className="font-semibold">Ground Rent History</h4>
+                        <h4 className="font-semibold">{editLabels.groundRent} History</h4>
                         {groundRent.map((charge) => (
                             <div key={charge.id} className="p-3 border border-slate-200 dark:border-slate-700 rounded-lg space-y-2">
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -155,7 +158,7 @@ const LeaseholdChargesSection: React.FC<LeaseholdChargesSectionProps> = ({ prope
                                 </div>
                             </div>
                         ))}
-                        <button type="button" onClick={() => addItem('groundRent')} className="mt-2 flex items-center gap-1 text-sm font-semibold text-brand-primary hover:underline"><PlusIcon /> Add Ground Rent</button>
+                        <button type="button" onClick={() => addItem('groundRent')} className="mt-2 flex items-center gap-1 text-sm font-semibold text-brand-primary hover:underline"><PlusIcon /> Add {editLabels.groundRent}</button>
                     </div>
                 </div>
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
@@ -166,11 +169,29 @@ const LeaseholdChargesSection: React.FC<LeaseholdChargesSectionProps> = ({ prope
         );
     }
 
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
     const { leaseholdCharges } = property.operations || {};
     const serviceCharges = (leaseholdCharges?.serviceCharges || []).sort((a,b) => b.year - a.year);
     const groundRent = (leaseholdCharges?.groundRent || []).sort((a,b) => b.year - a.year);
+    const totalItems = serviceCharges.length + groundRent.length;
 
-    const renderTable = (title: string, items: (ServiceCharge | GroundRent)[]) => (
+    const labels = getPropertyLabels(property.country);
+    const currencyCode = property.financials?.currency || labels.currency;
+    const symbol = { AUD: '$', USD: '$', GBP: '£', EUR: '€', NZD: '$', PLN: 'zł' }[currencyCode] || currencyCode + ' ';
+
+    const handleMarkPaid = (listName: 'serviceCharges' | 'groundRent', itemId: string) => {
+        const updatedProperty = JSON.parse(JSON.stringify(property)) as PropertyInfo;
+        if (!updatedProperty.operations?.leaseholdCharges) return;
+        const list = updatedProperty.operations.leaseholdCharges[listName];
+        if (!list) return;
+        const item = list.find((c: ServiceCharge | GroundRent) => c.id === itemId);
+        if (item) {
+            item.amountPaid = item.amountDue;
+        }
+        onSave(updatedProperty);
+    };
+
+    const renderTable = (title: string, items: (ServiceCharge | GroundRent)[], listName: 'serviceCharges' | 'groundRent') => (
         <div className="py-4 first:pt-0 last:pb-0">
             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</p>
             {items.length > 0 ? (
@@ -181,6 +202,7 @@ const LeaseholdChargesSection: React.FC<LeaseholdChargesSectionProps> = ({ prope
                                 <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-gray-300 uppercase tracking-wider">Year</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-gray-300 uppercase tracking-wider">Due</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-gray-300 uppercase tracking-wider">Paid</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-gray-300 uppercase tracking-wider">Balance</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-gray-300 uppercase tracking-wider">Due Date</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-gray-300 uppercase tracking-wider">Payment</th>
@@ -193,9 +215,30 @@ const LeaseholdChargesSection: React.FC<LeaseholdChargesSectionProps> = ({ prope
                                 return (
                                     <tr key={item.id}>
                                         <td className="px-4 py-3 text-sm font-medium text-slate-800 dark:text-gray-200">{item.year}</td>
-                                        <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-gray-300">£{item.amountDue.toFixed(2)}</td>
-                                        <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-gray-300">£{item.amountPaid.toFixed(2)}</td>
-                                        <td className="px-4 py-3 text-sm"><span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span></td>
+                                        <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-gray-300">{symbol}{item.amountDue.toFixed(2)}</td>
+                                        <td className="px-4 py-3 text-sm font-mono text-slate-600 dark:text-gray-300">{symbol}{item.amountPaid.toFixed(2)}</td>
+                                        <td className={`px-4 py-3 text-sm font-mono font-semibold ${
+                                            item.amountDue - item.amountPaid > 0 ? 'text-red-600 dark:text-red-400' :
+                                            item.amountPaid - item.amountDue > 0 ? 'text-green-600 dark:text-green-400' :
+                                            'text-slate-400 dark:text-gray-500'
+                                        }`}>
+                                            {item.amountDue === item.amountPaid ? '—' :
+                                             item.amountDue > item.amountPaid ? `${symbol}${(item.amountDue - item.amountPaid).toFixed(2)}` :
+                                             `-${symbol}${(item.amountPaid - item.amountDue).toFixed(2)}`}
+                                        </td>
+                                        <td className="px-4 py-3 text-sm">
+                                            {status.text === 'Paid' ? (
+                                                <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${status.color}`}>{status.text}</span>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleMarkPaid(listName, item.id)}
+                                                    className={`px-2 py-0.5 text-xs font-semibold rounded-full cursor-pointer transition-opacity hover:opacity-80 ${status.color}`}
+                                                    title="Click to mark as paid"
+                                                >
+                                                    {status.text} — Mark Paid
+                                                </button>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3 text-sm text-slate-500 dark:text-gray-400">{formatDate(item.dueDate)}</td>
                                         <td className="px-4 py-3 text-sm">
                                             {isUrl(paymentInfo) ? (
@@ -219,13 +262,31 @@ const LeaseholdChargesSection: React.FC<LeaseholdChargesSectionProps> = ({ prope
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
             <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                <h2 className="text-xl font-bold flex items-center gap-3"><ReceiptPercentIcon /> Ground Rent & Service Charge</h2>
-                <button onClick={onSetEditing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/50 text-sm font-semibold text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><EditIcon /><span>Edit</span></button>
+                <h2 className="text-xl font-bold flex items-center gap-3"><ReceiptPercentIcon /> {labels.leaseholdSection}</h2>
+                <div className="flex items-center gap-2">
+                    {totalItems > 0 && (
+                        <button onClick={() => setShowClearConfirm(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"><TrashIcon /><span>Clear All</span></button>
+                    )}
+                    <button onClick={onSetEditing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/50 text-sm font-semibold text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><EditIcon /><span>Edit</span></button>
+                </div>
             </div>
             <div className="p-6 divide-y divide-slate-100 dark:divide-slate-700">
-                {renderTable("Service Charge History", serviceCharges)}
-                {renderTable("Ground Rent History", groundRent)}
+                {renderTable(`${labels.serviceCharge} History`, serviceCharges, 'serviceCharges')}
+                {labels.hasGroundRent && renderTable(`${labels.groundRent} History`, groundRent, 'groundRent')}
             </div>
+            {showClearConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowClearConfirm(false)}>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 max-w-md mx-4" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Clear All {labels.leaseholdSection} Data?</h3>
+                        <p className="text-sm text-slate-600 dark:text-gray-400 mb-1">This will permanently delete <span className="font-semibold text-red-600 dark:text-red-400">{serviceCharges.length} {labels.serviceCharge.toLowerCase()} records</span>{groundRent.length > 0 ? <> and <span className="font-semibold text-red-600 dark:text-red-400">{groundRent.length} {labels.groundRent.toLowerCase()} records</span></> : ''}.</p>
+                        <p className="text-sm text-slate-500 dark:text-gray-500 mb-6">This action cannot be undone.</p>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => setShowClearConfirm(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-gray-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancel</button>
+                            <button onClick={() => { onSave({ ...property, operations: { ...property.operations, leaseholdCharges: { serviceCharges: [], groundRent: [] } } }); setShowClearConfirm(false); }} className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors">Clear All</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

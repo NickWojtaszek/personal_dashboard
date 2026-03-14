@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import type { PropertyInfo, Document, PropertyContact } from '../../types';
 import { DocumentTextIcon, AtSymbolIcon, PhoneIcon, ChevronRightIcon, PaperClipIcon, UserGroupIcon, LightningBoltIcon, EditIcon, SaveIcon, TrashIcon, PlusIcon } from './Icons';
+import { openDocument } from '../../lib/openDocument';
 
 interface DocumentsContactsSectionProps {
     property: PropertyInfo;
@@ -65,12 +66,6 @@ const DocumentsContactsSection: React.FC<DocumentsContactsSectionProps> = ({ pro
         onSave(editedData);
     };
     
-    const getDocumentUrl = (doc: Document) => {
-        if (doc.data && doc.mimeType) {
-            return `data:${doc.mimeType};base64,${doc.data}`;
-        }
-        return doc.url;
-    };
 
     if (isEditing) {
         return (
@@ -157,10 +152,10 @@ const DocumentsContactsSection: React.FC<DocumentsContactsSectionProps> = ({ pro
                     <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-gray-300 mb-3 uppercase tracking-wider"><DocumentTextIcon /> Documents</h3>
                     <div className="space-y-2">
                         {documents && documents.length > 0 ? documents.map(doc => (
-                            <a href={getDocumentUrl(doc)} key={doc.name} target="_blank" rel="noopener noreferrer" download={doc.name} className="flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group">
+                            <button type="button" key={doc.name} onClick={() => openDocument(doc)} className="w-full flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group text-left">
                                 <span className="text-sm font-medium text-brand-primary dark:text-brand-secondary truncate">{doc.name}</span>
                                 <ChevronRightIcon className="text-slate-400 group-hover:text-brand-primary" />
-                            </a>
+                            </button>
                         )) : <p className="text-sm text-slate-500 dark:text-gray-400 p-2">No documents uploaded.</p>}
                     </div>
                 </div>

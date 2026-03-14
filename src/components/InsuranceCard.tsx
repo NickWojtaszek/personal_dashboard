@@ -1,6 +1,7 @@
 import React, { forwardRef } from 'react';
 import type { InsuranceInfo } from '../types';
 import { getColorForGroup } from '../constants';
+import PolicyProgressBar from './insurance-detail/PolicyProgressBar';
 
 interface InsuranceCardProps {
     policy: InsuranceInfo;
@@ -39,10 +40,11 @@ const CardContent: React.FC<{ policy: InsuranceInfo }> = ({ policy }) => (
             )}
         </div>
         
-        <div className="flex-grow mb-4">
+        <div className="flex-grow mb-4 space-y-3">
              <p className="text-slate-600 dark:text-slate-300 text-sm">
                 {policy.policyType && `${policy.policyType}. `}Renews {policy.renewalDate}.
             </p>
+            <PolicyProgressBar startDate={policy.startDate} endDate={policy.endDate} variant="compact" />
         </div>
         
         {policy.groups && policy.groups.length > 0 && (

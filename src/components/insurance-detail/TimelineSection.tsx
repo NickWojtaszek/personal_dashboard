@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { InsuranceInfo } from '../../types';
 import { CalendarIcon, EditIcon, SaveIcon } from './Icons';
+import PolicyProgressBar from './PolicyProgressBar';
 
 interface TimelineSectionProps {
     policy: InsuranceInfo;
@@ -105,6 +106,7 @@ const TimelineSection: React.FC<TimelineSectionProps> = ({ policy, isEditing, on
                 </button>
             </div>
             <div className="p-5 space-y-4">
+                <PolicyProgressBar startDate={policy.startDate} endDate={policy.endDate} variant="full" />
                 <DetailItem label="Start Date" value={formatDate(policy.startDate)} />
                 <DetailItem label="End Date" value={formatDate(policy.endDate)} />
                 <DetailItem label="Renewal Date" value={policy.renewalDate} />

@@ -4,7 +4,9 @@
 import React, { useState, useEffect } from 'react';
 import type { PropertyInfo, MaintenanceJob, EquipmentInstallation, Document } from '../../types';
 import { WrenchScrewdriverIcon, EditIcon, SaveIcon, DocumentTextIcon, ChevronRightIcon, TrashIcon, PlusIcon } from './Icons';
+import { getPropertyLabels } from '../../lib/countryLabels';
 import { v4 as uuidv4 } from 'uuid';
+import { openDocument } from '../../lib/openDocument';
 
 interface MaintenanceSectionProps {
     property: PropertyInfo;
@@ -29,6 +31,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 const MaintenanceSection: React.FC<MaintenanceSectionProps> = ({ property, isEditing, onSetEditing, onSave, onCancel }) => {
     const [editedData, setEditedData] = useState<PropertyInfo['operations']>(property.operations);
+    const labels = getPropertyLabels(property.country);
 
     useEffect(() => {
         if (isEditing) {
@@ -132,12 +135,6 @@ const MaintenanceSection: React.FC<MaintenanceSectionProps> = ({ property, isEdi
         return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     };
 
-    const getDocumentUrl = (doc?: Document) => {
-        if (doc?.data && doc?.mimeType) {
-            return `data:${doc.mimeType};base64,${doc.data}`;
-        }
-        return doc?.url || '#';
-    };
 
     if (isEditing) {
         const jobs = editedData?.maintenance?.jobs || [];
@@ -195,9 +192,11 @@ const MaintenanceSection: React.FC<MaintenanceSectionProps> = ({ property, isEdi
         );
     }
     
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
     const { maintenance } = property.operations || {};
     const jobs = (maintenance?.jobs || []).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const equipment = (maintenance?.equipment || []).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const totalItems = jobs.length + equipment.length;
 
     const renderTable = (title: string, items: (MaintenanceJob | EquipmentInstallation)[]) => (
         <div className="py-4 first:pt-0 last:pb-0">
@@ -212,12 +211,12 @@ const MaintenanceSection: React.FC<MaintenanceSectionProps> = ({ property, isEdi
                                         <p className="text-xs text-slate-500 dark:text-gray-400">{formatDate(item.date)}</p>
                                         <p className="text-sm font-medium text-slate-800 dark:text-gray-200">{item.description}</p>
                                     </div>
-                                    <p className="text-sm font-mono text-slate-600 dark:text-gray-300">£{item.cost.toFixed(2)}</p>
+                                    <p className="text-sm font-mono text-slate-600 dark:text-gray-300">{labels.currencySymbol}{item.cost.toFixed(2)}</p>
                                 </div>
                                 {item.document && (
-                                    <a href={getDocumentUrl(item.document)} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-2 text-sm text-brand-primary hover:underline">
+                                    <button type="button" onClick={() => openDocument(item.document)} className="mt-2 flex items-center gap-2 text-sm text-brand-primary hover:underline text-left">
                                         <DocumentTextIcon size={14}/> {item.document.name}
-                                    </a>
+                                    </button>
                                 )}
                             </div>
                         ))}
@@ -231,12 +230,30 @@ const MaintenanceSection: React.FC<MaintenanceSectionProps> = ({ property, isEdi
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
             <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <h2 className="text-xl font-bold flex items-center gap-3"><WrenchScrewdriverIcon /> Maintenance & Equipment</h2>
-                <button onClick={onSetEditing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/50 text-sm font-semibold text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><EditIcon /><span>Edit</span></button>
+                <div className="flex items-center gap-2">
+                    {totalItems > 0 && (
+                        <button onClick={() => setShowClearConfirm(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"><TrashIcon /><span>Clear All</span></button>
+                    )}
+                    <button onClick={onSetEditing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/50 text-sm font-semibold text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><EditIcon /><span>Edit</span></button>
+                </div>
             </div>
             <div className="p-6 divide-y divide-slate-100 dark:divide-slate-700">
                 {renderTable("Maintenance History", jobs)}
                 {renderTable("Equipment & Appliances", equipment)}
             </div>
+            {showClearConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowClearConfirm(false)}>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 max-w-md mx-4" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Clear All Maintenance & Equipment?</h3>
+                        <p className="text-sm text-slate-600 dark:text-gray-400 mb-1">This will permanently delete <span className="font-semibold text-red-600 dark:text-red-400">{jobs.length} maintenance jobs</span> and <span className="font-semibold text-red-600 dark:text-red-400">{equipment.length} equipment records</span>.</p>
+                        <p className="text-sm text-slate-500 dark:text-gray-500 mb-6">This action cannot be undone.</p>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => setShowClearConfirm(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-gray-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancel</button>
+                            <button onClick={() => { onSave({ ...property, operations: { ...property.operations, maintenance: { jobs: [], equipment: [] } } }); setShowClearConfirm(false); }} className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors">Clear All</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

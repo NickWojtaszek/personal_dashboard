@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import type { InsuranceInfo, Document } from '../../types';
 import { PaperClipIcon, EditIcon, SaveIcon, ExternalLinkIcon, DocumentTextIcon, ChevronRightIcon } from './Icons';
 import { getColorForGroup } from '../../constants';
+import { openDocument } from '../../lib/openDocument';
 
 interface DetailsSectionProps {
     policy: InsuranceInfo;
@@ -41,13 +42,6 @@ const DetailsSection: React.FC<DetailsSectionProps> = ({ policy, isEditing, onSe
         onSave(editedData);
     };
     
-    const getDocumentUrl = (doc: Document) => {
-        if (doc.data && doc.mimeType) {
-            return `data:${doc.mimeType};base64,${doc.data}`;
-        }
-        return doc.url;
-    };
-
     if(isEditing) {
         return (
              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-brand-primary/50 dark:border-brand-secondary/50">
@@ -100,13 +94,13 @@ const DetailsSection: React.FC<DetailsSectionProps> = ({ policy, isEditing, onSe
                     <h3 className="text-sm font-medium text-slate-600 dark:text-gray-300 mb-2 uppercase tracking-wider">Document</h3>
                      <div className="space-y-2">
                         {policy.document ? (
-                             <a href={getDocumentUrl(policy.document)} target="_blank" rel="noopener noreferrer" download={policy.document.name} className="flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group">
+                             <button type="button" onClick={() => openDocument(policy.document!)} className="w-full flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors group text-left">
                                 <div className="flex items-center gap-2">
                                     <DocumentTextIcon/>
-                                    <span className="text-sm font-medium text-brand-primary dark:text-brand-secondary truncate">{policy.document.name}</span>
+                                    <span className="text-sm font-medium text-brand-primary dark:text-brand-secondary truncate">{policy.document!.name}</span>
                                 </div>
                                 <ChevronRightIcon className="text-slate-400 group-hover:text-brand-primary" />
-                            </a>
+                            </button>
                         ) : <p className="text-sm text-slate-500 dark:text-gray-400 p-2">No document attached.</p>}
                     </div>
                 </div>

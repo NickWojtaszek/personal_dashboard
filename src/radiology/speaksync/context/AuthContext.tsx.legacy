@@ -1,0 +1,65 @@
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import type { AuthData, User, UserRole } from '../types';
+
+interface AuthContextType {
+    currentUser: User | null;
+    users: User[];
+    login: (username: string, role: UserRole) => void;
+    logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const initialAuthData: AuthData = {
+    users: [
+        { id: 'nick', name: 'Nick', role: 'radiologist' },
+        { id: 'emilia', name: 'Emilia', role: 'radiologist' },
+        { id: 'edyta', name: 'Edyta', role: 'verifier' },
+    ],
+    currentUser: null,
+}
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [authData, setAuthData] = useLocalStorage<AuthData>('speaksync_auth_v2', initialAuthData);
+
+    const login = useCallback((username: string, role: UserRole) => {
+        const userId = username.toLowerCase();
+        setAuthData(prevData => {
+            const existingUser = prevData.users.find(u => u.id === userId);
+            const user: User = existingUser 
+                ? { ...existingUser, role }
+                : { id: userId, name: username.charAt(0).toUpperCase() + username.slice(1), role };
+            
+            const newUsers = existingUser 
+                ? prevData.users.map(u => u.id === userId ? user : u)
+                : [...prevData.users, user];
+            
+            return {
+                users: newUsers,
+                currentUser: user
+            };
+        });
+    }, [setAuthData]);
+
+    const logout = useCallback(() => {
+        setAuthData(prevData => ({ ...prevData, currentUser: null }));
+    }, [setAuthData]);
+
+    const value = {
+        currentUser: authData.currentUser,
+        users: authData.users,
+        login,
+        logout,
+    };
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = (): AuthContextType => {
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider');
+    }
+    return context;
+};

@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import type { InsuranceInfo } from '../types';
-import ProjectControls from './ProjectControls';
 import InsuranceGrid from './InsuranceGrid';
-import UpcomingRenewals from './insurance-detail/UpcomingRenewals';
+import PolicyProgressBar from './insurance-detail/PolicyProgressBar';
+import Button from './ui/Button';
+import { ListIcon, PlusIcon } from './Icons';
 
 interface InsurancePageProps {
     policies: InsuranceInfo[];
@@ -12,11 +13,109 @@ interface InsurancePageProps {
     onSelectPolicy: (id: string) => void;
     onNewPolicy: () => void;
     onEditPolicy: (policy: InsuranceInfo) => void;
+    onClearAll?: () => void;
 }
 
-type SortOption = 'recent' | 'oldest' | 'name';
+type SortOption = 'name' | 'recent' | 'oldest' | 'type' | 'due_date';
+type ViewMode = 'tiles' | 'list';
 
-// Section component to render a group of policies
+const SORT_OPTIONS = [
+    { value: 'name', label: 'Name (A-Z)' },
+    { value: 'recent', label: 'Newest First' },
+    { value: 'oldest', label: 'Oldest First' },
+    { value: 'type', label: 'Policy Type' },
+    { value: 'due_date', label: 'Due Date' },
+];
+
+const TilesIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
+    </svg>
+);
+
+const SearchIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+    </svg>
+);
+
+const getStatusColor = (status?: string) => {
+    switch (status) {
+        case 'Active': return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
+        case 'Expired': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300';
+        case 'Pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300';
+        default: return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
+    }
+};
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+    GBP: '\u00a3', USD: '$', AUD: 'A$', EUR: '\u20ac', PLN: 'z\u0142',
+};
+
+const formatCurrency = (amount?: number, currency?: string) => {
+    if (typeof amount !== 'number') return '\u2014';
+    const symbol = CURRENCY_SYMBOLS[currency || 'GBP'] || (currency ? `${currency} ` : '\u00a3');
+    return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+// --- List View Row ---
+const InsuranceListRow: React.FC<{
+    policy: InsuranceInfo;
+    onSelect: (id: string) => void;
+}> = ({ policy, onSelect }) => (
+    <button
+        onClick={() => onSelect(policy.id)}
+        className="w-full text-left grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-slate-200 dark:hover:border-slate-600"
+    >
+        <div className="col-span-3 min-w-0">
+            <p className="font-medium text-slate-800 dark:text-gray-200 truncate group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">{policy.name}</p>
+            <p className="text-xs text-slate-500 dark:text-gray-400 truncate">{policy.provider || '\u2014'}</p>
+        </div>
+        <div className="col-span-2">
+            <p className="text-sm text-slate-600 dark:text-gray-300 truncate">{policy.policyType || '\u2014'}</p>
+        </div>
+        <div className="col-span-2 text-right">
+            <p className="text-sm font-medium text-slate-700 dark:text-gray-200">{formatCurrency(policy.premiumAmount, policy.currency)}</p>
+            <p className="text-xs text-slate-400 dark:text-gray-500">{policy.paymentFrequency || ''}</p>
+        </div>
+        <div className="col-span-4">
+            <PolicyProgressBar startDate={policy.startDate} endDate={policy.endDate} variant="full" />
+        </div>
+        <div className="col-span-1 flex justify-end">
+            {policy.status && (
+                <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${getStatusColor(policy.status)}`}>
+                    {policy.status}
+                </span>
+            )}
+        </div>
+    </button>
+);
+
+// --- List View Section ---
+const InsuranceListSection: React.FC<{
+    title: string;
+    policies: InsuranceInfo[];
+    onSelect: (id: string) => void;
+}> = ({ title, policies, onSelect }) => {
+    if (policies.length === 0) return null;
+    return (
+        <section>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-200 mb-4">{title}</h3>
+            <div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-medium text-slate-400 dark:text-gray-500 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 mb-1">
+                <div className="col-span-3">Policy</div>
+                <div className="col-span-2">Type</div>
+                <div className="col-span-2 text-right">Premium</div>
+                <div className="col-span-4">Timeline</div>
+                <div className="col-span-1 text-right">Status</div>
+            </div>
+            <div className="space-y-0.5">
+                {policies.map(p => <InsuranceListRow key={p.id} policy={p} onSelect={onSelect} />)}
+            </div>
+        </section>
+    );
+};
+
+// --- Tiles Section ---
 const InsuranceGroupSection: React.FC<{
     title: string;
     policies: InsuranceInfo[];
@@ -25,66 +124,68 @@ const InsuranceGroupSection: React.FC<{
     onSelect: (id: string) => void;
     onOrderChange: (activeId: string, overId: string) => void;
 }> = ({ title, policies, ...gridProps }) => {
-    if (policies.length === 0) {
-        return null;
-    }
+    if (policies.length === 0) return null;
     return (
-        <section> 
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-gray-200 mb-6">{title}</h2>
+        <section>
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-200 mb-6">{title}</h3>
             <InsuranceGrid policies={policies} {...gridProps} />
         </section>
     );
 };
 
-const InsurancePage: React.FC<InsurancePageProps> = ({ 
-    policies, 
+const InsurancePage: React.FC<InsurancePageProps> = ({
+    policies,
     onOrderChange,
-    isAdminMode, 
-    insuranceGroups, 
+    isAdminMode,
+    insuranceGroups,
     onSelectPolicy,
     onNewPolicy,
     onEditPolicy,
+    onClearAll,
 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedSort, setSelectedSort] = useState<SortOption>('name');
     const [selectedGroup, setSelectedGroup] = useState('All');
+    const [viewMode, setViewMode] = useState<ViewMode>('list');
+    const [confirmClear, setConfirmClear] = useState(false);
 
     const filteredPolicies = useMemo(() => {
         let filtered = [...policies];
-        
+
         if (selectedGroup !== 'All') {
-            filtered = filtered.filter(policy => 
+            filtered = filtered.filter(policy =>
                 policy.groups?.includes(selectedGroup)
             );
         }
-        
+
         if (searchTerm.trim()) {
             const lowercasedTerm = searchTerm.toLowerCase();
             filtered = filtered.filter(policy =>
                 policy.name.toLowerCase().includes(lowercasedTerm) ||
-                policy.provider.toLowerCase().includes(lowercasedTerm)
+                policy.provider.toLowerCase().includes(lowercasedTerm) ||
+                (policy.policyType || '').toLowerCase().includes(lowercasedTerm)
             );
         }
-        
-        const indexedPolicies = policies.map((p, index) => ({...p, originalIndex: index}));
+
+        const statusOrder: Record<string, number> = { Active: 0, Pending: 1, Expired: 2 };
+        const getStatusOrder = (p: InsuranceInfo) => statusOrder[p.status || ''] ?? 1;
+        const getEndTime = (p: InsuranceInfo) => p.endDate ? new Date(p.endDate).getTime() : 0;
 
         return filtered.sort((a, b) => {
+            const statusDiff = getStatusOrder(a) - getStatusOrder(b);
+            if (statusDiff !== 0) return statusDiff;
+
             switch (selectedSort) {
                 case 'name': return a.name.localeCompare(b.name);
-                case 'recent': 
-                     const bIndex = indexedPolicies.find(p => p.id === b.id)?.originalIndex ?? -1;
-                    const aIndex = indexedPolicies.find(p => p.id === a.id)?.originalIndex ?? -1;
-                    return bIndex - aIndex;
-                case 'oldest': 
-                    const aIndexOld = indexedPolicies.find(p => p.id === a.id)?.originalIndex ?? -1;
-                    const bIndexOld = indexedPolicies.find(p => p.id === b.id)?.originalIndex ?? -1;
-                    return aIndexOld - bIndexOld;
+                case 'recent': return getEndTime(b) - getEndTime(a);
+                case 'oldest': return getEndTime(a) - getEndTime(b);
+                case 'type': return (a.policyType || '').localeCompare(b.policyType || '');
+                case 'due_date': return getEndTime(a) - getEndTime(b);
                 default: return 0;
             }
         });
     }, [policies, searchTerm, selectedSort, selectedGroup]);
 
-    // Grouping logic
     const { homePolicies, vehiclePolicies, lifeHealthPolicies, otherPolicies } = useMemo(() => {
         const homePolicies: InsuranceInfo[] = [];
         const vehiclePolicies: InsuranceInfo[] = [];
@@ -114,40 +215,135 @@ const InsurancePage: React.FC<InsurancePageProps> = ({
         onOrderChange,
     };
 
+    const selectClasses = "bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition";
+
+    const renderContent = () => {
+        if (filteredPolicies.length === 0) {
+            return (
+                <div className="text-center py-16 text-slate-500 dark:text-gray-400">
+                    <p className="text-lg">No policies found.</p>
+                    <p>Try adjusting your search or filters.</p>
+                </div>
+            );
+        }
+
+        if (viewMode === 'list') {
+            return (
+                <div className="space-y-8">
+                    <InsuranceListSection title="Home Insurance" policies={homePolicies} onSelect={onSelectPolicy} />
+                    <InsuranceListSection title="Vehicle Insurance" policies={vehiclePolicies} onSelect={onSelectPolicy} />
+                    <InsuranceListSection title="Life & Health Insurance" policies={lifeHealthPolicies} onSelect={onSelectPolicy} />
+                    <InsuranceListSection title="Other Insurance" policies={otherPolicies} onSelect={onSelectPolicy} />
+                </div>
+            );
+        }
+
+        return (
+            <div className="space-y-12">
+                <InsuranceGroupSection title="Home Insurance" policies={homePolicies} {...gridProps} />
+                <InsuranceGroupSection title="Vehicle Insurance" policies={vehiclePolicies} {...gridProps} />
+                <InsuranceGroupSection title="Life & Health Insurance" policies={lifeHealthPolicies} {...gridProps} />
+                <InsuranceGroupSection title="Other Insurance" policies={otherPolicies} {...gridProps} />
+            </div>
+        );
+    };
+
     return (
-        <div className="space-y-8">
-            <ProjectControls
-                title="Insurance Policies"
-                searchTerm={searchTerm}
-                onSearchTermChange={setSearchTerm}
-                selectedSort={selectedSort as any}
-                onSortChange={setSelectedSort as any}
-                selectedGroup={selectedGroup}
-                onGroupChange={setSelectedGroup}
-                groups={insuranceGroups}
-                isAdminMode={isAdminMode}
-                onNewProject={onNewPolicy}
-                projectCount={filteredPolicies.length}
-            />
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 items-start">
-                <div className="lg:col-span-2 space-y-12">
-                    {filteredPolicies.length > 0 ? (
-                        <>
-                            <InsuranceGroupSection title="Home Insurance" policies={homePolicies} {...gridProps} />
-                            <InsuranceGroupSection title="Vehicle Insurance" policies={vehiclePolicies} {...gridProps} />
-                            <InsuranceGroupSection title="Life & Health Insurance" policies={lifeHealthPolicies} {...gridProps} />
-                            <InsuranceGroupSection title="Other Insurance" policies={otherPolicies} {...gridProps} />
-                        </>
-                    ) : (
-                        <div className="text-center py-16 text-slate-500 dark:text-gray-400">
-                            <p className="text-lg">No policies found.</p>
-                            <p>Try adjusting your search or filters.</p>
+        <div className="space-y-6">
+            {/* Header — matches dashboard pattern */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Insurance Policies</h1>
+                    <p className="text-sm text-slate-500 dark:text-gray-400 mt-1">
+                        {filteredPolicies.length} polic{filteredPolicies.length === 1 ? 'y' : 'ies'} across all categories.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2 self-start">
+                    <div className="p-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg flex items-center gap-1">
+                        <Button
+                            variant={viewMode === 'list' ? 'primary' : 'ghost'}
+                            size="sm"
+                            onClick={() => setViewMode('list')}
+                            leftIcon={<ListIcon />}
+                        >
+                            List
+                        </Button>
+                        <Button
+                            variant={viewMode === 'tiles' ? 'primary' : 'ghost'}
+                            size="sm"
+                            onClick={() => setViewMode('tiles')}
+                            leftIcon={<TilesIcon />}
+                        >
+                            Tiles
+                        </Button>
+                    </div>
+                    <Button onClick={onNewPolicy} leftIcon={<PlusIcon />}>
+                        Policy
+                    </Button>
+                </div>
+            </div>
+
+            {/* Content card */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
+                {/* Search, filter, sort bar */}
+                <div className="p-5 border-b border-slate-200 dark:border-slate-700">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div className="relative md:col-span-2">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <SearchIcon className="w-5 h-5 text-slate-400 dark:text-gray-500" />
+                            </div>
+                            <input
+                                type="text"
+                                placeholder="Search policies..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-lg pl-10 pr-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition"
+                            />
+                        </div>
+                        <select
+                            value={selectedGroup}
+                            onChange={(e) => setSelectedGroup(e.target.value)}
+                            className={selectClasses}
+                        >
+                            <option value="All">All Groups</option>
+                            {insuranceGroups.sort().map(group => (
+                                <option key={group} value={group}>{group}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={selectedSort}
+                            onChange={(e) => setSelectedSort(e.target.value as SortOption)}
+                            className={selectClasses}
+                        >
+                            {SORT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        </select>
+                    </div>
+
+                    {/* Clear All (admin action) */}
+                    {onClearAll && policies.length > 0 && (
+                        <div className="flex items-center gap-2 mt-3">
+                            {confirmClear ? (
+                                <>
+                                    <span className="text-sm text-red-600 dark:text-red-400">Clear all {policies.length} policies?</span>
+                                    <Button variant="danger" size="sm" onClick={() => { onClearAll(); setConfirmClear(false); }}>
+                                        Yes, clear all
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => setConfirmClear(false)}>
+                                        Cancel
+                                    </Button>
+                                </>
+                            ) : (
+                                <Button variant="outline" size="sm" onClick={() => setConfirmClear(true)} className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                    Clear All
+                                </Button>
+                            )}
                         </div>
                     )}
                 </div>
-                <div className="lg:col-span-1 lg:sticky lg:top-28">
-                    <UpcomingRenewals policies={policies} />
+
+                {/* Main content */}
+                <div className="p-5">
+                    {renderContent()}
                 </div>
             </div>
         </div>

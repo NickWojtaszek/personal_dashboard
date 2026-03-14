@@ -1,5 +1,5 @@
-
 import React from 'react';
+import Button from './ui/Button';
 
 interface FilterBarProps {
     specialties: string[];
@@ -12,20 +12,25 @@ const FilterBar: React.FC<FilterBarProps> = ({ specialties, activeFilter, onFilt
 
     return (
         <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
-            {filters.map(filter => (
-                <button
-                    key={filter}
-                    onClick={() => onFilterChange(filter)}
-                    aria-pressed={activeFilter === filter}
-                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-900 focus:ring-brand-primary ${
-                        activeFilter === filter
-                            ? 'bg-brand-primary text-white shadow'
-                            : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-gray-300 dark:hover:bg-slate-600'
-                    }`}
-                >
-                    {filter}
-                </button>
-            ))}
+            {filters.map(filter => {
+                const isActive = activeFilter === filter;
+                return (
+                    <Button
+                        key={filter}
+                        onClick={() => onFilterChange(filter)}
+                        // Use custom styling to match the pill design exactly
+                        className={`rounded-full ${
+                             isActive 
+                                ? 'bg-brand-primary text-white shadow hover:bg-opacity-90' 
+                                : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-gray-300 dark:hover:bg-slate-600'
+                        }`}
+                        // active prop is not strictly needed if we control classes, but nice for semantics
+                        aria-pressed={isActive}
+                    >
+                        {filter}
+                    </Button>
+                );
+            })}
         </div>
     );
 };

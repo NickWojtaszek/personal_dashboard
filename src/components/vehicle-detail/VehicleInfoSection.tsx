@@ -22,18 +22,20 @@ const DetailItem: React.FC<{ label: string; value?: string | number | null; clas
 
 const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition" />;
 const Label: React.FC<{ htmlFor?: string, children: React.ReactNode }> = ({ htmlFor, children }) => <label htmlFor={htmlFor} className="block text-xs font-medium text-slate-600 dark:text-gray-300 mb-1">{children}</label>;
+const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition resize-none" />;
 
 const VehicleInfoSection: React.FC<VehicleInfoSectionProps> = ({ vehicle, isEditing, onSetEditing, onSave, onCancel }) => {
     const [editedData, setEditedData] = useState<VehicleInfo>(vehicle);
-    
+
     useEffect(() => {
         if(isEditing) {
             setEditedData(vehicle);
         }
     }, [vehicle, isEditing]);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value, type } = e.target;
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        const type = (e.target as HTMLInputElement).type;
         setEditedData(prev => ({ ...prev, [name]: type === 'number' ? (value === '' ? undefined : parseInt(value)) : value }));
     };
 
@@ -51,11 +53,15 @@ const VehicleInfoSection: React.FC<VehicleInfoSectionProps> = ({ vehicle, isEdit
                     <div><Label>Name</Label><Input name="name" value={editedData.name} onChange={handleInputChange} /></div>
                     <div><Label>Rego</Label><Input name="rego" value={editedData.rego} onChange={handleInputChange} /></div>
                     <div><Label>State</Label><Input name="state" value={editedData.state} onChange={handleInputChange} /></div>
+                    <div><Label>Purpose</Label><Input name="purpose" value={editedData.purpose || ''} onChange={handleInputChange} /></div>
+                    <div><Label>Start Date</Label><Input type="date" name="startDate" value={editedData.startDate || ''} onChange={handleInputChange} /></div>
                     <div><Label>Expiry Date</Label><Input type="date" name="expiryDate" value={editedData.expiryDate} onChange={handleInputChange} /></div>
                     <div><Label>Make</Label><Input name="make" value={editedData.make || ''} onChange={handleInputChange} /></div>
                     <div><Label>Model</Label><Input name="model" value={editedData.model || ''} onChange={handleInputChange} /></div>
                     <div><Label>Year</Label><Input type="number" name="year" value={editedData.year || ''} onChange={handleInputChange} /></div>
+                    <div><Label>Body Type</Label><Input name="bodyType" value={editedData.bodyType || ''} onChange={handleInputChange} /></div>
                     <div className="sm:col-span-2"><Label>VIN</Label><Input name="vin" value={editedData.vin || ''} onChange={handleInputChange} /></div>
+                    <div className="sm:col-span-2"><Label>Notes</Label><Textarea name="notes" rows={3} value={editedData.notes || ''} onChange={handleInputChange} /></div>
                 </div>
                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
                     <button onClick={onCancel} className="px-4 py-2 rounded-lg bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors">Cancel</button>
@@ -83,11 +89,15 @@ const VehicleInfoSection: React.FC<VehicleInfoSectionProps> = ({ vehicle, isEdit
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
                 <DetailItem label="Registration (Rego)" value={vehicle.rego} />
                 <DetailItem label="State/Country" value={vehicle.state} />
+                <DetailItem label="Start Date" value={vehicle.startDate ? new Date(vehicle.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : undefined} />
                 <DetailItem label="Expiry Date" value={new Date(vehicle.expiryDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
                 <DetailItem label="Make" value={vehicle.make} />
                 <DetailItem label="Model" value={vehicle.model} />
                 <DetailItem label="Year" value={vehicle.year} />
-                <DetailItem label="VIN" value={vehicle.vin} className="sm:col-span-2" />
+                <DetailItem label="Body Type" value={vehicle.bodyType} />
+                <DetailItem label="Purpose" value={vehicle.purpose} />
+                <DetailItem label="VIN" value={vehicle.vin} />
+                {vehicle.notes && <DetailItem label="Notes" value={vehicle.notes} className="sm:col-span-2" />}
             </div>
         </div>
     );

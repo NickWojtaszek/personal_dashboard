@@ -10,9 +10,14 @@ interface FinancialsSectionProps {
     onCancel: () => void;
 }
 
-const formatCurrency = (amount?: number) => {
+const CURRENCY_SYMBOLS: Record<string, string> = {
+    GBP: '£', USD: '$', AUD: 'A$', EUR: '€', PLN: 'zł',
+};
+
+const formatCurrency = (amount?: number, currency?: string) => {
     if (typeof amount !== 'number') return 'N/A';
-    return `£${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const symbol = CURRENCY_SYMBOLS[currency || 'GBP'] || (currency ? `${currency} ` : '£');
+    return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const DetailItem: React.FC<{ label: string; value?: string | null }> = ({ label, value }) => (
@@ -74,6 +79,16 @@ const FinancialsSection: React.FC<FinancialsSectionProps> = ({ policy, isEditing
                             <option value="Other">Other</option>
                         </Select>
                     </div>
+                    <div>
+                        <Label>Currency</Label>
+                        <Select name="currency" value={editedData.currency || 'GBP'} onChange={handleInputChange}>
+                            <option value="GBP">GBP (£)</option>
+                            <option value="AUD">AUD (A$)</option>
+                            <option value="USD">USD ($)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="PLN">PLN (zł)</option>
+                        </Select>
+                    </div>
                 </div>
                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
                     <button onClick={onCancel} className="px-4 py-2 rounded-lg bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors">Cancel</button>
@@ -99,9 +114,9 @@ const FinancialsSection: React.FC<FinancialsSectionProps> = ({ policy, isEditing
                 </button>
             </div>
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                <DetailItem label="Coverage Amount" value={formatCurrency(policy.coverageAmount)} />
-                <DetailItem label="Premium" value={`${formatCurrency(policy.premiumAmount)} ${policy.paymentFrequency || ''}`} />
-                <DetailItem label="Deductible/Excess" value={formatCurrency(policy.deductible)} />
+                <DetailItem label="Coverage Amount" value={formatCurrency(policy.coverageAmount, policy.currency)} />
+                <DetailItem label="Premium" value={`${formatCurrency(policy.premiumAmount, policy.currency)} ${policy.paymentFrequency || ''}`} />
+                <DetailItem label="Deductible/Excess" value={formatCurrency(policy.deductible, policy.currency)} />
             </div>
         </div>
     );

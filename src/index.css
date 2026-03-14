@@ -2,6 +2,37 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scrollbar-gutter: stable;
+  background-color: white;
+}
+html.dark {
+  background-color: #0f172a; /* slate-900 */
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
+}
+.dark ::-webkit-scrollbar-thumb,
+html.dark ::-webkit-scrollbar-thumb {
+  background: #334155; /* slate-700 */
+}
+.dark ::-webkit-scrollbar-thumb:hover,
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569; /* slate-600 */
+}
+
 @media print {
   body {
     -webkit-print-color-adjust: exact;
@@ -28,3 +59,18 @@
     margin: 15mm;
   }
 }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+
+.mask-linear-fade {
+  mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 5%, black 95%, transparent);
+}
+

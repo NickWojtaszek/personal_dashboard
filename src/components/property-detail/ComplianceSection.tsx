@@ -1,9 +1,32 @@
 
 
 import React, { useState, useEffect } from 'react';
-import type { PropertyInfo, EicrCheck, GasSafetyCheck, InsurancePolicyRecord, Document } from '../../types';
+import type { PropertyInfo, InsuranceInfo, EicrCheck, GasSafetyCheck, InsurancePolicyRecord, Document } from '../../types';
 import { ShieldCheckIcon, EditIcon, SaveIcon, LightningBoltIcon, FireIcon, DocumentTextIcon, ChevronRightIcon, TrashIcon, PlusIcon } from './Icons';
 import { v4 as uuidv4 } from 'uuid';
+import { openDocument } from '../../lib/openDocument';
+import { getPolicyProgress, type ProgressStatus } from '../insurance-detail/policyUtils';
+
+const statusColors: Record<ProgressStatus, string> = { green: 'bg-green-500', yellow: 'bg-yellow-500', orange: 'bg-orange-500', red: 'bg-red-500', expired: 'bg-red-700' };
+const statusBgColors: Record<ProgressStatus, string> = { green: 'bg-green-500/20', yellow: 'bg-yellow-500/20', orange: 'bg-orange-500/20', red: 'bg-red-500/20', expired: 'bg-red-700/20' };
+const statusTextColors: Record<ProgressStatus, string> = { green: 'text-green-600 dark:text-green-400', yellow: 'text-yellow-600 dark:text-yellow-400', orange: 'text-orange-600 dark:text-orange-400', red: 'text-red-600 dark:text-red-400', expired: 'text-red-700 dark:text-red-400' };
+
+const TimeBar: React.FC<{ startDate?: string; endDate?: string; expiredLabel?: string; activeLabel?: string }> = ({ startDate, endDate, expiredLabel, activeLabel }) => {
+    const progress = getPolicyProgress(startDate, endDate);
+    if (!progress) return null;
+    const { percentage, daysRemaining, status } = progress;
+    const text = status === 'expired'
+        ? (expiredLabel || 'Overdue')
+        : (activeLabel || `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} remaining`);
+    return (
+        <div className="mt-1.5 space-y-1">
+            <div className={`w-full rounded-full h-1.5 ${statusBgColors[status]}`}>
+                <div className={`h-1.5 rounded-full transition-all duration-500 ${statusColors[status]}`} style={{ width: `${percentage}%` }} />
+            </div>
+            <p className={`text-xs font-medium ${statusTextColors[status]}`}>{text}</p>
+        </div>
+    );
+};
 
 interface ComplianceSectionProps {
     property: PropertyInfo;
@@ -11,6 +34,7 @@ interface ComplianceSectionProps {
     onSetEditing: () => void;
     onSave: (property: PropertyInfo) => void;
     onCancel: () => void;
+    linkedInsurance?: InsuranceInfo[];
 }
 
 const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
@@ -31,7 +55,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     return window.btoa(binary);
 }
 
-const ComplianceSection: React.FC<ComplianceSectionProps> = ({ property, isEditing, onSetEditing, onSave, onCancel }) => {
+const ComplianceSection: React.FC<ComplianceSectionProps> = ({ property, isEditing, onSetEditing, onSave, onCancel, linkedInsurance }) => {
     const [editedData, setEditedData] = useState<PropertyInfo>(property);
 
     useEffect(() => {
@@ -63,13 +87,6 @@ const ComplianceSection: React.FC<ComplianceSectionProps> = ({ property, isEditi
     const formatDate = (dateString?: string) => {
         if (!dateString) return null;
         return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    };
-
-    const getDocumentUrl = (doc?: Document) => {
-        if (doc?.data && doc?.mimeType) {
-            return `data:${doc.mimeType};base64,${doc.data}`;
-        }
-        return doc?.url || '#';
     };
 
     // EICR Handlers
@@ -185,34 +202,81 @@ const ComplianceSection: React.FC<ComplianceSectionProps> = ({ property, isEditi
     const sortedEicr = (compliance?.eicr?.checks || []).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const sortedGas = (compliance?.gasSafety?.checks || []).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const sortedInsurance = (compliance?.insurance?.policies || []).sort((a,b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime());
-    const latestInsuranceExpiry = sortedInsurance[0]?.endDate;
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
+    const activeLinked = (linkedInsurance || []).filter(p => p.status === 'Active' || !p.status);
+    const latestLinkedExpiry = activeLinked.length > 0 ? activeLinked.reduce((a, b) => (a.endDate || a.renewalDate) > (b.endDate || b.renewalDate) ? a : b) : null;
+    const latestInsuranceExpiry = latestLinkedExpiry ? (latestLinkedExpiry.endDate || latestLinkedExpiry.renewalDate) : sortedInsurance[0]?.endDate;
+    const totalComplianceItems = sortedEicr.length + sortedGas.length + sortedInsurance.length;
 
     return (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
             <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <h2 className="text-xl font-bold flex items-center gap-3"><ShieldCheckIcon /> Compliance</h2>
-                <button onClick={onSetEditing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/50 text-sm font-semibold text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><EditIcon /><span>Edit</span></button>
+                <div className="flex items-center gap-2">
+                    {totalComplianceItems > 0 && (
+                        <button onClick={() => setShowClearConfirm(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"><TrashIcon /><span>Clear All</span></button>
+                    )}
+                    <button onClick={onSetEditing} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700/50 text-sm font-semibold text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"><EditIcon /><span>Edit</span></button>
+                </div>
             </div>
             <div className="p-6 divide-y divide-slate-100 dark:divide-slate-700">
                 {/* EICR */}
                 <div className="py-4 first:pt-0 last:pb-0">
                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2"><LightningBoltIcon /> EICR</p>
                     <div className="mt-2 text-xs text-slate-500 dark:text-gray-400">Next Due: <span className="text-sm font-medium text-slate-600 dark:text-gray-300">{formatDate(compliance?.eicr?.next) || 'N/A'}</span></div>
-                    {sortedEicr.length > 0 && <details className="mt-2 text-sm"><summary className="cursor-pointer text-xs text-slate-500 dark:text-gray-400 hover:underline">View History</summary><div className="space-y-1 mt-2">{sortedEicr.map(check => (<a key={check.id} href={getDocumentUrl(check.document)} target="_blank" rel="noopener noreferrer" className="flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 group"><div className="flex items-center gap-2"><DocumentTextIcon /><span className="font-medium text-brand-primary dark:text-brand-secondary truncate">{check.document?.name || formatDate(check.date)}</span></div><ChevronRightIcon className="text-slate-400 group-hover:text-brand-primary" /></a>))}</div></details>}
+                    {compliance?.eicr?.next && <TimeBar startDate={sortedEicr[0]?.date} endDate={compliance.eicr.next} expiredLabel="EICR overdue" />}
+                    {sortedEicr.length > 0 && <details className="mt-2 text-sm"><summary className="cursor-pointer text-xs text-slate-500 dark:text-gray-400 hover:underline">View History</summary><div className="space-y-1 mt-2">{sortedEicr.map(check => (<button key={check.id} type="button" onClick={() => openDocument(check.document)} className="w-full flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 group text-left"><div className="flex items-center gap-2 min-w-0"><DocumentTextIcon /><span className="font-medium text-brand-primary dark:text-brand-secondary truncate">{check.document?.name || formatDate(check.date)}</span></div><ChevronRightIcon className="text-slate-400 group-hover:text-brand-primary flex-shrink-0" /></button>))}</div></details>}
                 </div>
                 {/* Gas Safety */}
                 <div className="py-4 first:pt-0 last:pb-0">
                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2"><FireIcon /> Gas Safety</p>
                     <div className="mt-2 text-xs text-slate-500 dark:text-gray-400">Next Due: <span className="text-sm font-medium text-slate-600 dark:text-gray-300">{formatDate(compliance?.gasSafety?.next) || 'N/A'}</span></div>
-                    {sortedGas.length > 0 && <details className="mt-2 text-sm"><summary className="cursor-pointer text-xs text-slate-500 dark:text-gray-400 hover:underline">View History</summary><div className="space-y-1 mt-2">{sortedGas.map(check => (<a key={check.id} href={getDocumentUrl(check.document)} target="_blank" rel="noopener noreferrer" className="flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 group"><div className="flex items-center gap-2"><DocumentTextIcon /><span className="font-medium text-brand-primary dark:text-brand-secondary truncate">{check.document?.name || formatDate(check.date)}</span></div><ChevronRightIcon className="text-slate-400 group-hover:text-brand-primary" /></a>))}</div></details>}
+                    {compliance?.gasSafety?.next && <TimeBar startDate={sortedGas[0]?.date} endDate={compliance.gasSafety.next} expiredLabel="Gas safety overdue" />}
+                    {sortedGas.length > 0 && <details className="mt-2 text-sm"><summary className="cursor-pointer text-xs text-slate-500 dark:text-gray-400 hover:underline">View History</summary><div className="space-y-1 mt-2">{sortedGas.map(check => (<button key={check.id} type="button" onClick={() => openDocument(check.document)} className="w-full flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 group text-left"><div className="flex items-center gap-2 min-w-0"><DocumentTextIcon /><span className="font-medium text-brand-primary dark:text-brand-secondary truncate">{check.document?.name || formatDate(check.date)}</span></div><ChevronRightIcon className="text-slate-400 group-hover:text-brand-primary flex-shrink-0" /></button>))}</div></details>}
                 </div>
                 {/* Insurance */}
                 <div className="py-4 first:pt-0 last:pb-0">
                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2"><ShieldCheckIcon /> Insurance</p>
                     <div className="mt-2 text-xs text-slate-500 dark:text-gray-400">Next Expiry: <span className="text-sm font-medium text-slate-600 dark:text-gray-300">{formatDate(latestInsuranceExpiry) || 'N/A'}</span></div>
-                    {sortedInsurance.length > 0 && <details className="mt-2 text-sm"><summary className="cursor-pointer text-xs text-slate-500 dark:text-gray-400 hover:underline">View History</summary><div className="space-y-1 mt-2">{sortedInsurance.map(policy => (<a key={policy.id} href={getDocumentUrl(policy.document)} target="_blank" rel="noopener noreferrer" className="flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 group"><div className="flex items-center gap-2"><DocumentTextIcon /><span className="font-medium text-brand-primary dark:text-brand-secondary truncate">{policy.document?.name || `${formatDate(policy.startDate)} - ${formatDate(policy.endDate)}`}</span></div><ChevronRightIcon className="text-slate-400 group-hover:text-brand-primary" /></a>))}</div></details>}
+                    {activeLinked.length === 0 && sortedInsurance.length === 0 && (
+                        <p className="mt-2 text-xs text-slate-400 dark:text-gray-500 italic">No insurance linked. To sync, edit the policy in the Insurance tab and set "Linked Property" to this property.</p>
+                    )}
+                    {activeLinked.length > 0 && (
+                        <div className="mt-2 space-y-2.5">
+                            {activeLinked.map(ins => (
+                                <div key={ins.id} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50 text-sm">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            <ShieldCheckIcon />
+                                            <span className="font-medium text-slate-700 dark:text-gray-200 truncate">{ins.name}</span>
+                                            <span className="text-xs text-slate-400 dark:text-gray-500">({ins.provider})</span>
+                                        </div>
+                                        <span className="text-xs text-slate-500 dark:text-gray-400 whitespace-nowrap ml-2">
+                                            {ins.endDate ? `Expires ${formatDate(ins.endDate)}` : `Renews ${formatDate(ins.renewalDate)}`}
+                                        </span>
+                                    </div>
+                                    <TimeBar startDate={ins.startDate} endDate={ins.endDate || ins.renewalDate} expiredLabel="Insurance expired" />
+                                </div>
+                            ))}
+                            <p className="text-xs text-slate-400 dark:text-gray-500 italic">Synced from Insurance tab</p>
+                        </div>
+                    )}
+                    {sortedInsurance.length > 0 && <details className="mt-2 text-sm"><summary className="cursor-pointer text-xs text-slate-500 dark:text-gray-400 hover:underline">View Manual History</summary><div className="space-y-1 mt-2">{sortedInsurance.map(policy => (<button key={policy.id} type="button" onClick={() => openDocument(policy.document)} className="w-full flex justify-between items-center p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700/50 group text-left"><div className="flex items-center gap-2 min-w-0"><DocumentTextIcon /><span className="font-medium text-brand-primary dark:text-brand-secondary truncate">{policy.document?.name || `${formatDate(policy.startDate)} - ${formatDate(policy.endDate)}`}</span></div><ChevronRightIcon className="text-slate-400 group-hover:text-brand-primary flex-shrink-0" /></button>))}</div></details>}
                 </div>
             </div>
+            {showClearConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowClearConfirm(false)}>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 max-w-md mx-4" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">Clear All Compliance Data?</h3>
+                        <p className="text-sm text-slate-600 dark:text-gray-400 mb-1">This will permanently delete <span className="font-semibold text-red-600 dark:text-red-400">{sortedEicr.length} EICR checks</span>, <span className="font-semibold text-red-600 dark:text-red-400">{sortedGas.length} gas safety checks</span>, and <span className="font-semibold text-red-600 dark:text-red-400">{sortedInsurance.length} insurance records</span>.</p>
+                        <p className="text-sm text-slate-500 dark:text-gray-500 mb-6">This action cannot be undone.</p>
+                        <div className="flex justify-end gap-3">
+                            <button onClick={() => setShowClearConfirm(false)} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 dark:text-gray-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancel</button>
+                            <button onClick={() => { onSave({ ...property, compliance: { eicr: { checks: [], next: '' }, gasSafety: { checks: [], next: '' }, insurance: [] } }); setShowClearConfirm(false); }} className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors">Clear All</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
