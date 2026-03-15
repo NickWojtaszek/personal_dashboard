@@ -17,6 +17,7 @@ import CouncilTaxSection from './property-detail/CouncilTaxSection';
 import CorrespondenceSection from './property-detail/CorrespondenceSection';
 import ThreadsSection from './property-detail/ThreadsSection';
 import FinancialHealthSection from './property-detail/FinancialHealthSection';
+import DocumentsContainer from './DocumentsContainer';
 import PrintModal from './property-detail/PrintModal';
 import PrintablePropertyReport from './property-detail/PrintablePropertyReport';
 import { v4 as uuidv4 } from 'uuid';
@@ -774,6 +775,12 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                             linkedInsurance={insurancePolicies?.filter(p => p.propertyId === property.id)}
                         />
                         </div>
+                        <DocumentsContainer
+                            documents={property.documents || []}
+                            onChange={(docs) => handleSave({ ...property, documents: docs })}
+                            defaultCategory="Other"
+                            title="Property Documents"
+                        />
                         <div data-section="notes">
                         <NotesSection
                             property={property}

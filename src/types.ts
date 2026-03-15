@@ -185,11 +185,32 @@ export interface PropertyTitle {
     document?: Document;
 }
 
+export type DocumentCategory =
+    | 'Policy'
+    | 'Certificate'
+    | 'Purchase'
+    | 'Tenancy Agreement'
+    | 'Lease'
+    | 'Title Deed'
+    | 'Mortgage'
+    | 'Invoice'
+    | 'Receipt'
+    | 'Inspection Report'
+    | 'Compliance'
+    | 'Correspondence'
+    | 'Valuation'
+    | 'Tax'
+    | 'Other';
+
 export interface Document {
+    id?: string;
     name: string;
+    label?: string; // user-friendly display name
+    category?: DocumentCategory;
     url: string;
     data?: string; // base64 encoded
     mimeType?: string;
+    uploadedAt?: string; // ISO date
 }
 
 export interface EicrCheck {
@@ -434,6 +455,7 @@ export interface InsuranceInfo {
     notes?: string;
     currency?: string;
     document?: Document;
+    documents?: Document[];
     history?: PolicyHistoryEntry[];
 }
 

@@ -136,11 +136,17 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
             // 3. Send text to Gemini API
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
             const prompt = `Extract insurance policy details from the text below. Rules:
-- For "provider": use the customer-facing brand name (e.g. "Virgin Money", "Terri Scheer"), NOT the underlying product issuer or ABN holder.
+- The document may be in ANY language (English, Polish, German, etc.). Read and understand the document in its original language, then return all extracted values in English.
+- For "provider": use the customer-facing brand name as written in the document (keep original name, do not translate company names).
+- For "policyholder": keep the original name as written in the document.
+- For "policyType": translate to English (e.g. Polish "ubezpieczenie mieszkania" → "Home Insurance", "OC" → "Third Party Liability", "AC" → "Comprehensive", "ubezpieczenie na życie" → "Life Insurance").
+- For "coverageSummary": provide a concise English summary of what the policy covers.
+- For "notes": include any important details, translated to English.
 - Format all dates as YYYY-MM-DD.
 - All monetary values must be plain numbers without currency symbols.
+- Detect the correct currency from the document (e.g. PLN for Polish złoty, GBP for British pounds, AUD for Australian dollars).
 - If a field cannot be confidently determined from the text, return null for that field.
-- For "deductible": use the main/basic excess amount.
+- For "deductible": use the main/basic excess amount (in Polish: "franszyza redukcyjna" or "udział własny").
 
 Policy text:
 ${pdfText}`;
