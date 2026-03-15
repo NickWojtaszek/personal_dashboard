@@ -437,6 +437,7 @@ export interface InsuranceInfo {
     name: string;
     provider: string;
     renewalDate: string;
+    country?: PropertyCountry;
     groups?: string[];
     propertyId?: string; // Link to a PropertyInfo.id for compliance sync
     policyType?: string;

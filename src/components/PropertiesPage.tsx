@@ -3,6 +3,7 @@ import type { PropertyInfo } from '../types';
 import PropertyGrid from './PropertyGrid';
 import Button from './ui/Button';
 import { ListIcon, TilesIcon, PlusIcon, SearchIcon, UploadIcon } from './Icons';
+import { getCountryBorder, getCountryFlag } from '../lib/countryColors';
 
 interface PropertiesPageProps {
     properties: PropertyInfo[];
@@ -28,10 +29,13 @@ const SORT_OPTIONS = [
 const PropertyListRow: React.FC<{ property: PropertyInfo; onSelect: (id: string) => void }> = ({ property, onSelect }) => (
     <button
         onClick={() => onSelect(property.id)}
-        className="w-full text-left grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-slate-200 dark:hover:border-slate-600"
+        className={`w-full text-left grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-slate-200 dark:hover:border-slate-600 ${getCountryBorder(property.country)}`}
     >
         <div className="col-span-4 min-w-0">
-            <p className="font-medium text-slate-800 dark:text-gray-200 truncate group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">{property.name}</p>
+            <p className="font-medium text-slate-800 dark:text-gray-200 truncate group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">
+                {property.country && <span className="mr-1.5">{getCountryFlag(property.country)}</span>}
+                {property.name}
+            </p>
             {property.location && <p className="text-xs text-slate-500 dark:text-gray-400 truncate">{property.location}</p>}
         </div>
         <div className="col-span-4 min-w-0">

@@ -2,6 +2,7 @@ import React, { forwardRef } from 'react';
 import type { InsuranceInfo } from '../types';
 import { getColorForGroup } from '../constants';
 import PolicyProgressBar from './insurance-detail/PolicyProgressBar';
+import { getCountryBorder, getCountryFlag } from '../lib/countryColors';
 
 interface InsuranceCardProps {
     policy: InsuranceInfo;
@@ -30,7 +31,10 @@ const CardContent: React.FC<{ policy: InsuranceInfo }> = ({ policy }) => (
     <div className="flex flex-col p-6 h-full">
         <div className="flex items-start justify-between mb-2">
             <div>
-                <h3 className="font-semibold text-slate-800 dark:text-gray-200 group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">{policy.name}</h3>
+                <h3 className="font-semibold text-slate-800 dark:text-gray-200 group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">
+                    {policy.country && <span className="mr-1.5" title={policy.country}>{getCountryFlag(policy.country)}</span>}
+                    {policy.name}
+                </h3>
                 <p className="text-sm text-slate-500 dark:text-gray-400">{policy.provider}</p>
             </div>
             {policy.status && (
@@ -58,7 +62,8 @@ const CardContent: React.FC<{ policy: InsuranceInfo }> = ({ policy }) => (
 );
 
 const InsuranceCard = forwardRef<HTMLDivElement, InsuranceCardProps>(({ policy, isAdminMode, onEdit, onSelect, listeners, style, isDragging, ...rest }, ref) => {
-    const baseClasses = "relative group flex flex-col h-full bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden transition-all duration-300 ease-in-out border border-slate-200 dark:border-slate-700 text-left w-full";
+    const countryBorder = getCountryBorder(policy.country);
+    const baseClasses = `relative group flex flex-col h-full bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden transition-all duration-300 ease-in-out border border-slate-200 dark:border-slate-700 text-left w-full ${countryBorder}`;
     const draggingClasses = isDragging ? "opacity-70 shadow-2xl scale-105" : "";
     
     const cardContent = <CardContent policy={policy} />;

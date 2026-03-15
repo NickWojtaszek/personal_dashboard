@@ -2,7 +2,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import type { InsuranceInfo, PropertyInfo, Document } from '../types';
+import type { InsuranceInfo, PropertyInfo, PropertyCountry, Document } from '../types';
 import InsuranceInfoSection from './insurance-detail/InsuranceInfoSection';
 import FinancialsSection from './insurance-detail/FinancialsSection';
 import TimelineSection from './insurance-detail/TimelineSection';
@@ -10,6 +10,8 @@ import DetailsSection from './insurance-detail/DetailsSection';
 import AIAssistantSection from './insurance-detail/AIAssistantSection';
 import PolicyHistorySection from './insurance-detail/PolicyHistorySection';
 import DocumentsContainer from './DocumentsContainer';
+import { getCountryBg, getCountryFlag, currencyToCountry } from '../lib/countryColors';
+import { COUNTRY_OPTIONS } from '../lib/countryLabels';
 
 const BackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>);
 const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>);
@@ -41,6 +43,8 @@ const InsuranceDetailPage: React.FC<InsuranceDetailPageProps> = ({ policy, allPo
     const [editingSection, setEditingSection] = useState<EditableInsuranceSection>(null);
     const [showMergeMenu, setShowMergeMenu] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [editingName, setEditingName] = useState(false);
+    const [editNameValue, setEditNameValue] = useState('');
 
     const handleSave = (updatedPolicy: InsuranceInfo) => {
         onSavePolicy(updatedPolicy);
@@ -96,6 +100,12 @@ const InsuranceDetailPage: React.FC<InsuranceDetailPageProps> = ({ policy, allPo
             }
         }
 
+        // Auto-detect country from currency
+        if (!updatedPolicy.country && updatedPolicy.currency) {
+            const detected = currencyToCountry(updatedPolicy.currency);
+            if (detected) updatedPolicy.country = detected;
+        }
+
         onSavePolicy(updatedPolicy);
     };
 
@@ -133,11 +143,37 @@ const InsuranceDetailPage: React.FC<InsuranceDetailPageProps> = ({ policy, allPo
                 </button>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
+            <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6 ${getCountryBg(policy.country)}`}>
                 <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
                     <div>
                         <div className="flex items-center gap-3">
-                            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{policy.name}</h1>
+                            {policy.country && <span className="text-xl">{getCountryFlag(policy.country)}</span>}
+                            {editingName ? (
+                                <input
+                                    autoFocus
+                                    value={editNameValue}
+                                    onChange={e => setEditNameValue(e.target.value)}
+                                    onBlur={() => { if (editNameValue.trim()) { onSavePolicy({ ...policy, name: editNameValue.trim() }); } setEditingName(false); }}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.currentTarget.blur(); } if (e.key === 'Escape') { setEditingName(false); } }}
+                                    className="text-2xl font-bold text-slate-900 dark:text-white bg-transparent border-b-2 border-brand-primary outline-none px-0"
+                                />
+                            ) : (
+                                <h1
+                                    className="text-2xl font-bold text-slate-900 dark:text-white cursor-pointer hover:text-brand-primary transition-colors"
+                                    onClick={() => { setEditNameValue(policy.name); setEditingName(true); }}
+                                    title="Click to rename"
+                                >{policy.name}</h1>
+                            )}
+                            {/* Country selector */}
+                            <select
+                                value={policy.country || ''}
+                                onChange={e => onSavePolicy({ ...policy, country: (e.target.value || undefined) as PropertyCountry | undefined })}
+                                className="text-xs bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1.5 py-0.5 text-slate-600 dark:text-slate-300 cursor-pointer outline-none"
+                                title="Country/region"
+                            >
+                                <option value="">Region</option>
+                                {COUNTRY_OPTIONS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                            </select>
                             {/* Status dropdown */}
                             <div className="relative">
                                 <select

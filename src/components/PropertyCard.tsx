@@ -1,6 +1,7 @@
 import React, { forwardRef } from 'react';
 import type { PropertyInfo } from '../types';
 import { getColorForGroup } from '../constants';
+import { getCountryBorder, getCountryFlag } from '../lib/countryColors';
 
 interface PropertyCardProps {
     property: PropertyInfo;
@@ -19,7 +20,10 @@ const GripVerticalIcon = (props: React.SVGProps<SVGSVGElement>) => (<svg xmlns="
 const CardContent: React.FC<{ property: PropertyInfo }> = ({ property }) => (
     <div className="flex flex-col p-6 h-full">
         <div className="flex items-start justify-between mb-2">
-            <h3 className="font-semibold text-slate-800 dark:text-gray-200 group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">{property.name}</h3>
+            <h3 className="font-semibold text-slate-800 dark:text-gray-200 group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">
+                {property.country && <span className="mr-1.5">{getCountryFlag(property.country)}</span>}
+                {property.name}
+            </h3>
         </div>
         
         <div className="flex-grow mb-4">
@@ -39,7 +43,8 @@ const CardContent: React.FC<{ property: PropertyInfo }> = ({ property }) => (
 );
 
 const PropertyCard = forwardRef<HTMLDivElement, PropertyCardProps>(({ property, isAdminMode, onEdit, onSelect, listeners, style, isDragging, ...rest }, ref) => {
-    const baseClasses = "relative group flex flex-col h-full bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden transition-all duration-300 ease-in-out border border-slate-200 dark:border-slate-700 text-left w-full";
+    const countryBorder = getCountryBorder(property.country);
+    const baseClasses = `relative group flex flex-col h-full bg-slate-50 dark:bg-slate-800 rounded-xl overflow-hidden transition-all duration-300 ease-in-out border border-slate-200 dark:border-slate-700 text-left w-full ${countryBorder}`;
     const draggingClasses = isDragging ? "opacity-70 shadow-2xl scale-105" : "";
     
     const cardContent = <CardContent property={property} />;
