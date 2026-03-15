@@ -123,23 +123,27 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
                 mimeType: 'application/pdf',
             };
 
-            // 2. Extract text from PDF for AI
-            const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-            const pdf = await loadingTask.promise;
+            // 2. Try text extraction first, fall back to visual PDF if text is too short
             let pdfText = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                pdfText += textContent.items.map(item => item.str).join(' ') + '\n';
+            try {
+                const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    pdfText += textContent.items.map(item => item.str).join(' ') + '\n';
+                }
+            } catch {
+                // PDF text extraction failed — will use visual mode
             }
-            
-            // 3. Send text to Gemini API
+
+            // 3. Send to Gemini API — use inline PDF for visual processing when text is insufficient
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-            const prompt = `Extract insurance policy details from the text below. Rules:
+            const prompt = `Extract insurance policy details from this document. Rules:
 - The document may be in ANY language (English, Polish, German, etc.). Read and understand the document in its original language, then return all extracted values in English.
 - For "provider": use the customer-facing brand name as written in the document (keep original name, do not translate company names).
 - For "policyholder": keep the original name as written in the document.
-- For "policyType": translate to English (e.g. Polish "ubezpieczenie mieszkania" → "Home Insurance", "OC" → "Third Party Liability", "AC" → "Comprehensive", "ubezpieczenie na życie" → "Life Insurance").
+- For "policyType": translate to English (e.g. Polish "ubezpieczenie mieszkania" → "Home Insurance", "PZU Dom" → "Home Insurance", "OC" → "Third Party Liability", "AC" → "Comprehensive", "ubezpieczenie na życie" → "Life Insurance").
 - For "coverageSummary": provide a concise English summary of what the policy covers.
 - For "notes": include any important details, translated to English.
 - Format all dates as YYYY-MM-DD.
@@ -147,13 +151,22 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
 - Detect the correct currency from the document (e.g. PLN for Polish złoty, GBP for British pounds, AUD for Australian dollars).
 - If a field cannot be confidently determined from the text, return null for that field.
 - For "deductible": use the main/basic excess amount (in Polish: "franszyza redukcyjna" or "udział własny").
+- For "premiumAmount": use the total premium ("składka łączna") if available.`;
 
-Policy text:
-${pdfText}`;
+            // Always send the PDF visually + extracted text as backup for best accuracy
+            const contents = [
+                {
+                    inlineData: {
+                        mimeType: 'application/pdf',
+                        data: base64Data,
+                    },
+                },
+                { text: prompt + (pdfText.trim().length > 50 ? `\n\nExtracted text (for reference):\n${pdfText}` : '') },
+            ];
 
             const response = await ai.models.generateContent({
                 model: "gemini-2.5-flash",
-                contents: prompt,
+                contents,
                 config: {
                     temperature: 0.1,
                     responseMimeType: "application/json",
