@@ -83,39 +83,46 @@ export function isGmailAuthenticated(): boolean {
   return loadStoredToken() !== null;
 }
 
-// ─── OAuth flow via Google Identity Services ─────────────────────────
+// ─── OAuth flow via redirect (avoids COOP popup issues) ─────────────
 
-let tokenClient: google.accounts.oauth2.TokenClient | null = null;
-let pendingResolve: ((token: GmailToken) => void) | null = null;
-let pendingReject: ((err: Error) => void) | null = null;
+const GMAIL_REDIRECT_KEY = 'gmail-auth-pending';
 
-/** Load the GIS script if not already present. */
-function ensureGisScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (typeof google !== 'undefined' && google.accounts?.oauth2) {
-      resolve();
-      return;
-    }
-    if (document.getElementById('gis-script')) {
-      const existing = document.getElementById('gis-script') as HTMLScriptElement;
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('Failed to load Google Identity Services')));
-      return;
-    }
-    const script = document.createElement('script');
-    script.id = 'gis-script';
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
-    document.head.appendChild(script);
-  });
+/**
+ * Check on page load if we're returning from a Gmail OAuth redirect.
+ * Call this once at app startup.
+ */
+export function handleGmailRedirectResult(): boolean {
+  const hash = window.location.hash;
+  if (!hash.includes('access_token') || !hash.includes('scope')) return false;
+
+  // Only process if we initiated a Gmail OAuth flow (not Supabase)
+  const pending = sessionStorage.getItem(GMAIL_REDIRECT_KEY);
+  if (!pending) return false;
+  sessionStorage.removeItem(GMAIL_REDIRECT_KEY);
+
+  const params = new URLSearchParams(hash.substring(1));
+  const accessToken = params.get('access_token');
+  const expiresIn = params.get('expires_in');
+  const scope = params.get('scope') || '';
+
+  // Verify this is a Gmail token (has gmail scope), not a Supabase token
+  if (!accessToken || !scope.includes('gmail')) return false;
+
+  const token: GmailToken = {
+    access_token: accessToken,
+    expires_at: Date.now() + (parseInt(expiresIn || '3600', 10)) * 1000,
+  };
+  storeToken(token);
+
+  // Clean up the URL hash
+  window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  console.log('[Gmail] Token captured from redirect');
+  return true;
 }
 
 /**
- * Initiate the Gmail OAuth sign-in flow.
- * Returns a token on success.
+ * Initiate the Gmail OAuth sign-in flow via redirect.
+ * Redirects the user to Google, then back to the current page with a token.
  */
 export async function signInWithGmail(): Promise<GmailToken> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -123,56 +130,37 @@ export async function signInWithGmail(): Promise<GmailToken> {
     throw new Error('VITE_GOOGLE_CLIENT_ID is not set. Add it to your .env file.');
   }
 
-  await ensureGisScript();
+  // If we already have a valid token, return it
+  const existing = loadStoredToken();
+  if (existing) return existing;
 
-  return new Promise((resolve, reject) => {
-    // Store resolve/reject so the shared callback can use them
-    pendingResolve = resolve;
-    pendingReject = reject;
+  // Mark that we're initiating a Gmail OAuth flow
+  sessionStorage.setItem(GMAIL_REDIRECT_KEY, '1');
 
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: SCOPES,
-        callback: (response) => {
-          console.log('[Gmail] Token callback fired', response.error || 'success');
-          if (response.error) {
-            pendingReject?.(new Error(response.error_description || response.error));
-            pendingReject = null;
-            pendingResolve = null;
-            return;
-          }
-          const token: GmailToken = {
-            access_token: response.access_token,
-            expires_at: Date.now() + (response.expires_in ?? 3600) * 1000,
-          };
-          storeToken(token);
-          pendingResolve?.(token);
-          pendingResolve = null;
-          pendingReject = null;
-        },
-        error_callback: (err) => {
-          console.error('[Gmail] OAuth error_callback', err);
-          pendingReject?.(new Error(err.message || 'OAuth popup closed or failed'));
-          pendingReject = null;
-          pendingResolve = null;
-        },
-      });
-    }
-
-    tokenClient.requestAccessToken({ prompt: '' });
+  // Build the OAuth URL for implicit grant flow
+  const redirectUri = window.location.origin + window.location.pathname;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'token',
+    scope: SCOPES,
+    include_granted_scopes: 'true',
+    prompt: 'consent',
   });
+
+  window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+
+  // This won't actually return — the page navigates away
+  return new Promise(() => {});
 }
 
 export function signOutGmail() {
   const token = loadStoredToken();
   if (token) {
-    try {
-      google.accounts.oauth2.revoke(token.access_token, () => {});
-    } catch { /* ignore if GIS not loaded */ }
+    // Revoke the token via Google's endpoint
+    fetch(`https://oauth2.googleapis.com/revoke?token=${token.access_token}`, { method: 'POST' }).catch(() => {});
   }
   clearGmailToken();
-  tokenClient = null;
 }
 
 // ─── API helpers ─────────────────────────────────────────────────────
