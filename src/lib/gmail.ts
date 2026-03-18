@@ -135,6 +135,7 @@ export async function signInWithGmail(): Promise<GmailToken> {
         client_id: clientId,
         scope: SCOPES,
         callback: (response) => {
+          console.log('[Gmail] Token callback fired', response.error || 'success');
           if (response.error) {
             pendingReject?.(new Error(response.error_description || response.error));
             pendingReject = null;
@@ -150,10 +151,16 @@ export async function signInWithGmail(): Promise<GmailToken> {
           pendingResolve = null;
           pendingReject = null;
         },
+        error_callback: (err) => {
+          console.error('[Gmail] OAuth error_callback', err);
+          pendingReject?.(new Error(err.message || 'OAuth popup closed or failed'));
+          pendingReject = null;
+          pendingResolve = null;
+        },
       });
     }
 
-    tokenClient.requestAccessToken({ prompt: 'consent' });
+    tokenClient.requestAccessToken({ prompt: '' });
   });
 }
 
