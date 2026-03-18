@@ -85,8 +85,9 @@ export function isGmailAuthenticated(): boolean {
 
 // ─── OAuth flow via Google Identity Services ─────────────────────────
 
-let tokenClientReady = false;
 let tokenClient: google.accounts.oauth2.TokenClient | null = null;
+let pendingResolve: ((token: GmailToken) => void) | null = null;
+let pendingReject: ((err: Error) => void) | null = null;
 
 /** Load the GIS script if not already present. */
 function ensureGisScript(): Promise<void> {
@@ -96,7 +97,6 @@ function ensureGisScript(): Promise<void> {
       return;
     }
     if (document.getElementById('gis-script')) {
-      // Script tag exists but hasn't loaded yet — wait for it
       const existing = document.getElementById('gis-script') as HTMLScriptElement;
       existing.addEventListener('load', () => resolve());
       existing.addEventListener('error', () => reject(new Error('Failed to load Google Identity Services')));
@@ -126,13 +126,19 @@ export async function signInWithGmail(): Promise<GmailToken> {
   await ensureGisScript();
 
   return new Promise((resolve, reject) => {
-    if (!tokenClientReady) {
+    // Store resolve/reject so the shared callback can use them
+    pendingResolve = resolve;
+    pendingReject = reject;
+
+    if (!tokenClient) {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: SCOPES,
         callback: (response) => {
           if (response.error) {
-            reject(new Error(response.error_description || response.error));
+            pendingReject?.(new Error(response.error_description || response.error));
+            pendingReject = null;
+            pendingResolve = null;
             return;
           }
           const token: GmailToken = {
@@ -140,13 +146,14 @@ export async function signInWithGmail(): Promise<GmailToken> {
             expires_at: Date.now() + (response.expires_in ?? 3600) * 1000,
           };
           storeToken(token);
-          resolve(token);
+          pendingResolve?.(token);
+          pendingResolve = null;
+          pendingReject = null;
         },
       });
-      tokenClientReady = true;
     }
 
-    tokenClient!.requestAccessToken({ prompt: 'consent' });
+    tokenClient.requestAccessToken({ prompt: 'consent' });
   });
 }
 
@@ -158,7 +165,6 @@ export function signOutGmail() {
     } catch { /* ignore if GIS not loaded */ }
   }
   clearGmailToken();
-  tokenClientReady = false;
   tokenClient = null;
 }
 
