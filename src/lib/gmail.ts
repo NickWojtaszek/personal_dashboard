@@ -146,7 +146,7 @@ export async function signInWithGmail(): Promise<GmailToken> {
       tokenClientReady = true;
     }
 
-    tokenClient!.requestAccessToken({ prompt: '' });
+    tokenClient!.requestAccessToken({ prompt: 'consent' });
   });
 }
 
