@@ -138,7 +138,7 @@ export async function signInWithGmail(): Promise<GmailToken> {
   sessionStorage.setItem(GMAIL_REDIRECT_KEY, '1');
 
   // Build the OAuth URL for implicit grant flow
-  const redirectUri = window.location.origin;
+  const redirectUri = window.location.origin + '/';
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
