@@ -760,15 +760,20 @@ const App: React.FC = () => {
 
     const renderPage = () => {
         switch(page) {
-            case 'general':
+            case 'general': {
+                const unreadCount = correspondenceStore.correspondence.filter(c => !c.read).length;
                 return <GeneralPage
                             properties={properties}
                             insurancePolicies={insurancePolicies}
+                            contracts={contracts}
                             invoices={invoices}
                             vehicles={vehicles}
                             onNewInvoice={handleNewInvoice}
                             onNavigate={handleDashboardNavigate}
+                            unreadEmailCount={unreadCount}
+                            onGoToEmail={() => setPage('correspondence')}
                         />;
+            }
             case 'launcher':
                 return <AppsPage
                             apps={apps}

@@ -30,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 const TYPE_COLORS: Record<string, string> = {
     Property: 'bg-sky-500',
     Insurance: 'bg-green-500',
+    Contract: 'bg-amber-500',
     Vehicle: 'bg-orange-500',
     Invoice: 'bg-purple-500',
 };

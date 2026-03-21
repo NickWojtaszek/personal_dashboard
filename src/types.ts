@@ -564,4 +564,4 @@ export interface CorrespondenceStore {
     gmailSync: GmailSyncConfig;
     threads: ConversationThread[];
 }
-export type DueDateItemSubType = 'Lease End' | 'Next Inspection' | 'Insurance End' | 'Smoke Alarm Check' | 'Policy Renewal' | 'Policy End' | 'EICR Due' | 'Gas Safety Due' | 'Rego Expiry' | 'Rego Due';
+export type DueDateItemSubType = 'Lease End' | 'Next Inspection' | 'Insurance End' | 'Smoke Alarm Check' | 'Policy Renewal' | 'Policy End' | 'EICR Due' | 'Gas Safety Due' | 'Rego Expiry' | 'Rego Due' | 'Contract Expiry';

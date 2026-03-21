@@ -1,9 +1,9 @@
-import type { PropertyInfo, InsuranceInfo, InvoiceInfo, VehicleInfo, DueDateItemSubType } from '../../types';
+import type { PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, DueDateItemSubType } from '../../types';
 
 export interface DueDateItem {
     id: string;
     date: string; // ISO string 'YYYY-MM-DD'
-    type: 'Property' | 'Insurance' | 'Invoice' | 'Vehicle';
+    type: 'Property' | 'Insurance' | 'Contract' | 'Invoice' | 'Vehicle';
     subType: DueDateItemSubType;
     sourceName: string;
     // Extra context for row display
@@ -43,6 +43,7 @@ export function parseAllDueDates(
     invoices: InvoiceInfo[],
     vehicles: VehicleInfo[],
     includeOverdue = false,
+    contracts: ContractInfo[] = [],
 ): DueDateItem[] {
     const allDates: DueDateItem[] = [];
     const today = new Date();
@@ -117,6 +118,22 @@ export function parseAllDueDates(
                 startDate: vehicle.startDate, endDate: vehicle.expiryDate,
                 amount: vehicle.totalAmount, amountFrequency: vehicle.term, currency: vehicle.currency,
                 status: vehicle.status, section: 'info',
+            });
+        }
+    });
+
+    contracts.forEach(contract => {
+        if (contract.expirationDate && contract.status !== 'Archived') {
+            allDates.push({
+                id: contract.id,
+                date: contract.expirationDate,
+                type: 'Contract',
+                subType: 'Contract Expiry',
+                sourceName: contract.name,
+                detail: [contract.contractType, contract.employer].filter(Boolean).join(' \u00b7 '),
+                startDate: contract.effectiveDate, endDate: contract.expirationDate,
+                amount: contract.value, currency: contract.currency,
+                status: contract.status, section: 'info',
             });
         }
     });
