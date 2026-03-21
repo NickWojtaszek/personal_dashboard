@@ -20,13 +20,15 @@ import VehiclesPage from './components/VehiclesPage';
 import VehicleDetailPage from './components/VehicleDetailPage';
 import EditVehicleModal from './components/EditVehicleModal';
 import NewRegistrationModal from './components/NewRegistrationModal';
+import ContractsPage from './components/ContractsPage';
+import ContractDetailPage from './components/ContractDetailPage';
 import RadiologyTemplatesPage from './components/RadiologyTemplatesPage';
 import DictationPage from './components/DictationPage';
 import AllowedUsersModal from './components/AllowedUsersModal';
 import { isSupabaseEnabled } from './lib/supabase';
-import { INITIAL_APPS, APP_GROUPS, INITIAL_PROJECTS, PROJECT_GROUPS, INITIAL_PROPERTIES, PROPERTY_GROUPS, INITIAL_INSURANCE_POLICIES, INSURANCE_GROUPS, INITIAL_INVOICES, PURCHASE_INVOICE_CATEGORIES, INVOICE_LOCATIONS, INITIAL_VEHICLES, VEHICLE_GROUPS } from './constants';
+import { INITIAL_APPS, APP_GROUPS, INITIAL_PROJECTS, PROJECT_GROUPS, INITIAL_PROPERTIES, PROPERTY_GROUPS, INITIAL_INSURANCE_POLICIES, INSURANCE_GROUPS, INITIAL_CONTRACTS, CONTRACT_GROUPS, INITIAL_INVOICES, PURCHASE_INVOICE_CATEGORIES, INVOICE_LOCATIONS, INITIAL_VEHICLES, VEHICLE_GROUPS } from './constants';
 import CorrespondencePage from './components/CorrespondencePage';
-import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, InvoiceInfo, VehicleInfo, Page, CorrespondenceStore } from './types';
+import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, Page, CorrespondenceStore } from './types';
 import type { DueDateItem } from './components/general/dateUtils';
 import { loadAllItems, saveAllItems } from './lib/storage';
 import { arrayMove } from '@dnd-kit/sortable';
@@ -78,6 +80,11 @@ const App: React.FC = () => {
     const [pendingVehicleFile, setPendingVehicleFile] = useState<File | null>(null);
     const [pendingVehicleDocType, setPendingVehicleDocType] = useState<'renewal' | 'payment'>('renewal');
 
+    // Contracts state
+    const [contracts, setContracts] = useState<ContractInfo[]>([]);
+    const [contractGroups, setContractGroups] = useState<string[]>([]);
+    const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+
     // Correspondence state (standalone, not tied to any property)
     const [correspondenceStore, setCorrespondenceStore] = useState<CorrespondenceStore>({
         correspondence: [],
@@ -127,6 +134,8 @@ const App: React.FC = () => {
         invoiceLocations: 'launcher-invoice-locations',
         vehicles: 'launcher-vehicles',
         vehicleGroups: 'launcher-vehicle-groups',
+        contracts: 'launcher-contracts',
+        contractGroups: 'launcher-contract-groups',
         correspondenceStore: 'launcher-correspondence-store',
     } as const;
 
@@ -147,6 +156,8 @@ const App: React.FC = () => {
             setInvoiceLocations((data.get(STORAGE_KEYS.invoiceLocations) as string[]) || INVOICE_LOCATIONS);
             setVehicles((data.get(STORAGE_KEYS.vehicles) as VehicleInfo[]) || INITIAL_VEHICLES);
             setVehicleGroups((data.get(STORAGE_KEYS.vehicleGroups) as string[]) || VEHICLE_GROUPS);
+            setContracts((data.get(STORAGE_KEYS.contracts) as ContractInfo[]) || INITIAL_CONTRACTS);
+            setContractGroups((data.get(STORAGE_KEYS.contractGroups) as string[]) || CONTRACT_GROUPS);
             const loadedCorr = data.get(STORAGE_KEYS.correspondenceStore) as CorrespondenceStore | undefined;
             if (loadedCorr) setCorrespondenceStore(loadedCorr);
             dataLoadedRef.current = true;
@@ -165,6 +176,8 @@ const App: React.FC = () => {
             setInvoiceLocations(INVOICE_LOCATIONS);
             setVehicles(INITIAL_VEHICLES);
             setVehicleGroups(VEHICLE_GROUPS);
+            setContracts(INITIAL_CONTRACTS);
+            setContractGroups(CONTRACT_GROUPS);
             dataLoadedRef.current = true;
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,6 +201,8 @@ const App: React.FC = () => {
         if (invoiceLocations.length > 0) items[STORAGE_KEYS.invoiceLocations] = invoiceLocations;
         if (vehicles.length > 0) items[STORAGE_KEYS.vehicles] = vehicles;
         if (vehicleGroups.length > 0) items[STORAGE_KEYS.vehicleGroups] = vehicleGroups;
+        if (contracts.length > 0) items[STORAGE_KEYS.contracts] = contracts;
+        if (contractGroups.length > 0) items[STORAGE_KEYS.contractGroups] = contractGroups;
         if (correspondenceStore.correspondence.length > 0 || correspondenceStore.threads.length > 0 || correspondenceStore.gmailSync.rules.length > 0) {
             items[STORAGE_KEYS.correspondenceStore] = correspondenceStore;
         }
@@ -198,7 +213,7 @@ const App: React.FC = () => {
             console.error("Failed to save data to storage", error);
             setSaveError(`Save failed: ${error?.message || 'Unknown error'}. Your changes may not persist on refresh.`);
         });
-    }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, correspondenceStore]);
+    }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, contracts, contractGroups, correspondenceStore]);
 
 
     // --- General Handlers ---
@@ -236,7 +251,7 @@ const App: React.FC = () => {
         a.download = `dashboard-backup-${new Date().toISOString().replace(/[:.]/g, '').slice(0, 15)}.json`;
         a.click();
         URL.revokeObjectURL(url);
-    }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, correspondenceStore]);
+    }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, contracts, contractGroups, correspondenceStore]);
 
     const handleImportData = useCallback(() => {
         const input = document.createElement('input');
@@ -713,6 +728,36 @@ const App: React.FC = () => {
         });
     }, []);
 
+    // --- Contracts Handlers ---
+    const handleNewContract = useCallback(() => {
+        const newId = uuidv4();
+        const newContract: ContractInfo = { id: newId, name: 'New Contract', status: 'Pending', groups: [] };
+        setContracts(prev => [newContract, ...prev]);
+        setSelectedContractId(newId);
+    }, []);
+
+    const handleSaveContract = useCallback((contractToSave: ContractInfo) => {
+        setContracts(prev => {
+            const existing = prev.find(c => c.id === contractToSave.id);
+            if (existing) return prev.map(c => c.id === contractToSave.id ? contractToSave : c);
+            return [contractToSave, ...prev];
+        });
+    }, []);
+
+    const handleDeleteContract = useCallback((contractId: string) => {
+        setContracts(prev => prev.filter(c => c.id !== contractId));
+        setSelectedContractId(null);
+    }, []);
+
+    const handleContractOrderChange = useCallback((activeId: string, overId: string) => {
+        setContracts(prev => {
+            const oldIndex = prev.findIndex(c => c.id === activeId);
+            const newIndex = prev.findIndex(c => c.id === overId);
+            if (oldIndex !== -1 && newIndex !== -1) return arrayMove(prev, oldIndex, newIndex);
+            return prev;
+        });
+    }, []);
+
     const renderPage = () => {
         switch(page) {
             case 'general':
@@ -829,6 +874,28 @@ const App: React.FC = () => {
                         onEditVehicle={handleEditVehicle}
                         onClearAll={handleClearAllVehicles}
                        />;
+            case 'contracts':
+                if (selectedContractId) {
+                    const selectedContract = contracts.find(c => c.id === selectedContractId);
+                    if (!selectedContract) { setSelectedContractId(null); return null; }
+                    return <ContractDetailPage
+                                contract={selectedContract}
+                                allContracts={contracts}
+                                onBack={() => setSelectedContractId(null)}
+                                onSaveContract={handleSaveContract}
+                                onDeleteContract={handleDeleteContract}
+                            />;
+                }
+                return <ContractsPage
+                        contracts={contracts}
+                        onOrderChange={handleContractOrderChange}
+                        isAdminMode={isAdminMode}
+                        contractGroups={contractGroups}
+                        onSelectContract={(id) => setSelectedContractId(id)}
+                        onNewContract={handleNewContract}
+                        onEditContract={() => {}}
+                        onGroupsChange={(groups) => setContractGroups(groups)}
+                    />;
             case 'correspondence':
                 return <CorrespondencePage
                             store={correspondenceStore}

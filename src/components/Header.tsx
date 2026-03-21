@@ -43,6 +43,7 @@ const Header: React.FC<HeaderProps> = ({ isAdminMode, onToggleAdminMode, theme, 
                             {renderNavButton('insurance', 'Insurance')}
                             {renderNavButton('invoices', 'Invoices')}
                             {renderNavButton('vehicles', 'Rego')}
+                            {renderNavButton('contracts', 'Contracts')}
                             {renderNavButton('correspondence', 'Email')}
                             {renderNavButton('radiology', 'Radiology')}
                             {renderNavButton('dictation', 'Dictation')}

@@ -1,7 +1,7 @@
 
 
 import React from 'react';
-import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, InvoiceInfo, VehicleInfo, ShoppingItem } from './types';
+import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, ShoppingItem } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 const LauncherIcon = (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-12 h-12"><path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.82m5.84-2.56a6 6 0 0 0-7.38-5.84m2.56 5.84L6.13 20.25m9.24-9.24a6 6 0 0 0-5.84-7.38v4.82m5.84 2.56l-2.56-5.84m-5.84 7.38L3.75 15.59m9.24 2.12c.51-.13.98-.32 1.41-.56l-2.56-5.84m-5.84 7.38a6 6 0 0 1-2.12-9.24m9.24 9.24L15.59 3.75" /></svg>);
@@ -591,6 +591,10 @@ export const INITIAL_INSURANCE_POLICIES: InsuranceInfo[] = [
         notes: 'Property: 1 Cordelia St, South Brisbane QLD 4101. Upload policy PDF to auto-fill details.'
     },
 ];
+
+export const CONTRACT_GROUPS: string[] = ['Medical', 'Service', 'Employment', 'Property', 'UK', 'Australia', 'Poland'];
+
+export const INITIAL_CONTRACTS: ContractInfo[] = [];
 
 export const PURCHASE_INVOICE_CATEGORIES: string[] = ['Office Supplies', 'Software & Subscriptions', 'Hardware', 'Utilities', 'Travel & Accommodation', 'Marketing', 'Professional Services'];
 export const INVOICE_LOCATIONS: string[] = ['UK', 'PL', 'AU', 'Other'];

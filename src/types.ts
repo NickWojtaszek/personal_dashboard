@@ -460,6 +460,32 @@ export interface InsuranceInfo {
     history?: PolicyHistoryEntry[];
 }
 
+export interface ContractInfo {
+    id: string;
+    name: string;
+    contractType?: string;
+    employer?: string;
+    contractor?: string;
+    parties?: string[];
+    signedDate?: string;
+    effectiveDate?: string;
+    expirationDate?: string;
+    value?: number;
+    currency?: string;
+    paymentTerms?: string;
+    status?: 'Active' | 'Expired' | 'Pending' | 'Archived';
+    renewalType?: 'Auto' | 'Manual' | 'Fixed';
+    description?: string;
+    document?: Document;
+    documents?: Document[];
+    groups?: string[];
+    notes?: string;
+    country?: PropertyCountry;
+    minimumHours?: number;
+    contactEmail?: string;
+    contactPhone?: string;
+}
+
 export interface InvoiceInfo {
     id: string;
     description: string;
@@ -529,7 +555,7 @@ export interface ShoppingItem {
     notes?: string;
 }
 
-export type Page = 'launcher' | 'claude' | 'properties' | 'insurance' | 'general' | 'invoices' | 'vehicles' | 'radiology' | 'dictation' | 'correspondence';
+export type Page = 'launcher' | 'claude' | 'properties' | 'insurance' | 'general' | 'invoices' | 'vehicles' | 'contracts' | 'radiology' | 'dictation' | 'correspondence';
 
 /** Standalone correspondence store — not tied to any property. */
 export interface CorrespondenceStore {
