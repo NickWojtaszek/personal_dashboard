@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import type { ContractInfo, PropertyCountry, Document } from '../types';
+import React, { useState, useCallback } from 'react';
+import type { ContractInfo, PropertyCountry } from '../types';
 import DocumentsContainer from './DocumentsContainer';
 import { getCountryBg, getCountryFlag, currencyToCountry } from '../lib/countryColors';
 import { COUNTRY_OPTIONS } from '../lib/countryLabels';
 import { openDocument } from '../lib/openDocument';
+import { GoogleGenAI } from '@google/genai';
+import * as pdfjs from 'pdfjs-dist';
 
 const BackIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>);
 const TrashIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>);
@@ -69,9 +71,120 @@ const ContractDetailPage: React.FC<ContractDetailPageProps> = ({
     const [isEditingInfo, setIsEditingInfo] = useState(false);
     const [editedData, setEditedData] = useState<ContractInfo>(contract);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [aiFile, setAiFile] = useState<File | null>(null);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState<string | null>(null);
+    const [aiSuccess, setAiSuccess] = useState<string | null>(null);
 
     const days = daysUntil(contract.expirationDate);
     const progress = contractProgress(contract.effectiveDate, contract.expirationDate);
+
+    const handleAiExtract = useCallback(async () => {
+        if (!aiFile) return;
+        setAiLoading(true);
+        setAiError(null);
+        setAiSuccess(null);
+        try {
+            const arrayBuffer = await aiFile.arrayBuffer();
+            const base64Data = btoa(Array.from(new Uint8Array(arrayBuffer), b => String.fromCharCode(b)).join(''));
+            const doc = { name: aiFile.name, url: '#', data: base64Data, mimeType: 'application/pdf' };
+
+            // Extract text from PDF
+            const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+            const pdf = await loadingTask.promise;
+            let pdfText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const pg = await pdf.getPage(i);
+                const content = await pg.getTextContent();
+                pdfText += (content.items as any[]).map(item => item.str).join(' ') + '\n';
+            }
+
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+            const prompt = `Extract contract/agreement details from the text below. The document may be in ANY language (English, Polish, German, etc.). Return all values in English.
+Rules:
+- For company/organization names: keep original names, do not translate.
+- For person names: keep original names.
+- For "contractType": translate to English (e.g. "umowa o udzielanie świadczeń zdrowotnych" → "Healthcare Services Agreement", "umowa zlecenie" → "Service Contract", "umowa o pracę" → "Employment Contract").
+- For "description": provide a concise English summary of what the contract covers.
+- Format all dates as YYYY-MM-DD.
+- All monetary values must be plain numbers without currency symbols.
+- Detect the correct currency (e.g. PLN, GBP, AUD).
+- If a field cannot be determined, return null.
+
+Contract text:
+${pdfText}`;
+
+            const contractSchema = {
+                type: 'OBJECT' as const,
+                properties: {
+                    contractType: { type: 'STRING' as const, nullable: true },
+                    employer: { type: 'STRING' as const, nullable: true, description: 'The organization/company offering the contract' },
+                    contractor: { type: 'STRING' as const, nullable: true, description: 'The person/entity providing services' },
+                    signedDate: { type: 'STRING' as const, nullable: true },
+                    effectiveDate: { type: 'STRING' as const, nullable: true },
+                    expirationDate: { type: 'STRING' as const, nullable: true },
+                    value: { type: 'NUMBER' as const, nullable: true },
+                    currency: { type: 'STRING' as const, nullable: true },
+                    paymentTerms: { type: 'STRING' as const, nullable: true },
+                    minimumHours: { type: 'NUMBER' as const, nullable: true, description: 'Minimum monthly hours if specified' },
+                    description: { type: 'STRING' as const, nullable: true },
+                    contactEmail: { type: 'STRING' as const, nullable: true },
+                    contactPhone: { type: 'STRING' as const, nullable: true },
+                    notes: { type: 'STRING' as const, nullable: true, description: 'Any other important details, translated to English' },
+                },
+            };
+
+            const response = await ai.models.generateContent({
+                model: 'gemini-2.5-flash',
+                contents: prompt,
+                config: { temperature: 0.1, responseMimeType: 'application/json', responseSchema: contractSchema },
+            });
+
+            const extracted = JSON.parse(response.text || '{}');
+            const updated: ContractInfo = { ...contract };
+            if (extracted.contractType) updated.contractType = extracted.contractType;
+            if (extracted.employer) updated.employer = extracted.employer;
+            if (extracted.contractor) updated.contractor = extracted.contractor;
+            if (extracted.signedDate) updated.signedDate = extracted.signedDate;
+            if (extracted.effectiveDate) updated.effectiveDate = extracted.effectiveDate;
+            if (extracted.expirationDate) updated.expirationDate = extracted.expirationDate;
+            if (extracted.value != null) updated.value = extracted.value;
+            if (extracted.currency) updated.currency = extracted.currency;
+            if (extracted.paymentTerms) updated.paymentTerms = extracted.paymentTerms;
+            if (extracted.minimumHours != null) updated.minimumHours = extracted.minimumHours;
+            if (extracted.description) updated.description = extracted.description;
+            if (extracted.contactEmail) updated.contactEmail = extracted.contactEmail;
+            if (extracted.contactPhone) updated.contactPhone = extracted.contactPhone;
+            if (extracted.notes) updated.notes = extracted.notes;
+
+            // Auto-name
+            if (updated.name === 'New Contract') {
+                const parts: string[] = [];
+                if (updated.employer) parts.push(updated.employer);
+                if (updated.contractType) parts.push(updated.contractType);
+                if (parts.length > 0) updated.name = parts.join(' - ');
+            }
+            // Auto-detect country from currency
+            if (!updated.country && updated.currency) {
+                const detected = currencyToCountry(updated.currency);
+                if (detected) updated.country = detected;
+            }
+            // Auto-set status
+            if (updated.status === 'Pending' && updated.effectiveDate) updated.status = 'Active';
+
+            // Store PDF document
+            updated.document = doc;
+            updated.documents = [...(updated.documents || []), doc];
+
+            onSaveContract(updated);
+            setAiSuccess('Contract details extracted successfully!');
+            setAiFile(null);
+        } catch (err: any) {
+            setAiError(err.message || 'Failed to extract contract details');
+        } finally {
+            setAiLoading(false);
+        }
+    }, [aiFile, contract, onSaveContract]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -158,6 +271,34 @@ const ContractDetailPage: React.FC<ContractDetailPageProps> = ({
                         )}
                     </div>
                 </div>
+            </div>
+
+            {/* AI Extraction */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 p-6">
+                <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-brand-primary"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" /></svg>
+                    AI Contract Extraction
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">Upload a contract PDF and AI will extract all key details automatically.</p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    <label className="flex-1 flex items-center justify-center h-16 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <div className="text-center">
+                            <p className="text-sm text-slate-500"><span className="font-semibold">{aiFile ? aiFile.name : 'Choose PDF'}</span></p>
+                        </div>
+                        <input type="file" className="hidden" accept=".pdf" onChange={e => { setAiFile(e.target.files?.[0] || null); setAiError(null); setAiSuccess(null); }} />
+                    </label>
+                    <button
+                        onClick={handleAiExtract}
+                        disabled={!aiFile || aiLoading}
+                        className="px-6 py-3 bg-brand-primary text-white rounded-lg font-semibold text-sm hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                        {aiLoading ? (
+                            <><svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Extracting...</>
+                        ) : 'Extract Details'}
+                    </button>
+                </div>
+                {aiError && <p className="mt-3 text-sm text-red-500">{aiError}</p>}
+                {aiSuccess && <p className="mt-3 text-sm text-green-500">{aiSuccess}</p>}
             </div>
 
             {/* Timeline */}
@@ -276,7 +417,7 @@ const ContractDetailPage: React.FC<ContractDetailPageProps> = ({
                     {/* Documents */}
                     <DocumentsContainer
                         documents={contract.documents || (contract.document ? [contract.document] : [])}
-                        onDocumentsChange={(docs) => onSaveContract({ ...contract, documents: docs, document: docs[0] })}
+                        onChange={(docs) => onSaveContract({ ...contract, documents: docs, document: docs[0] })}
                         title="Contract Documents"
                     />
                 </div>
