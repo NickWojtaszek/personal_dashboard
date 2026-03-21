@@ -881,6 +881,7 @@ const App: React.FC = () => {
                     return <ContractDetailPage
                                 contract={selectedContract}
                                 allContracts={contracts}
+                                insurancePolicies={insurancePolicies}
                                 onBack={() => setSelectedContractId(null)}
                                 onSaveContract={handleSaveContract}
                                 onDeleteContract={handleDeleteContract}

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import type { ContractInfo, PropertyCountry } from '../types';
+import type { ContractInfo, InsuranceInfo, PropertyCountry } from '../types';
 import DocumentsContainer from './DocumentsContainer';
 import { getCountryBg, getCountryFlag, currencyToCountry } from '../lib/countryColors';
 import { COUNTRY_OPTIONS } from '../lib/countryLabels';
@@ -18,6 +18,7 @@ const STATUS_OPTIONS: ContractInfo['status'][] = ['Active', 'Expired', 'Pending'
 interface ContractDetailPageProps {
     contract: ContractInfo;
     allContracts?: ContractInfo[];
+    insurancePolicies?: InsuranceInfo[];
     onBack: () => void;
     onSaveContract: (contract: ContractInfo) => void;
     onDeleteContract?: (contractId: string) => void;
@@ -64,7 +65,7 @@ const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 const ContractDetailPage: React.FC<ContractDetailPageProps> = ({
-    contract, onBack, onSaveContract, onDeleteContract,
+    contract, insurancePolicies, onBack, onSaveContract, onDeleteContract,
 }) => {
     const [editingName, setEditingName] = useState(false);
     const [editNameValue, setEditNameValue] = useState('');
@@ -364,6 +365,19 @@ ${pdfText}`;
                                     </div>
                                     <div><Label>Contact Email</Label><Input name="contactEmail" type="email" value={editedData.contactEmail || ''} onChange={handleInputChange} /></div>
                                     <div><Label>Contact Phone</Label><Input name="contactPhone" type="tel" value={editedData.contactPhone || ''} onChange={handleInputChange} /></div>
+                                    {insurancePolicies && insurancePolicies.length > 0 && (
+                                        <div>
+                                            <Label>Linked Insurance Policy</Label>
+                                            <select
+                                                value={editedData.linkedInsuranceId || ''}
+                                                onChange={e => setEditedData(prev => ({ ...prev, linkedInsuranceId: e.target.value || undefined }))}
+                                                className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none transition"
+                                            >
+                                                <option value="">None</option>
+                                                {insurancePolicies.map(p => <option key={p.id} value={p.id}>{p.name} ({p.provider})</option>)}
+                                            </select>
+                                        </div>
+                                    )}
                                     <div className="sm:col-span-2"><Label>Description</Label><textarea name="description" value={editedData.description || ''} onChange={handleInputChange} rows={3} className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none resize-none" /></div>
                                     <div className="sm:col-span-2"><Label>Notes</Label><textarea name="notes" value={editedData.notes || ''} onChange={handleInputChange} rows={2} className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none resize-none" /></div>
                                 </div>
@@ -381,6 +395,7 @@ ${pdfText}`;
                                     <DetailItem label="Renewal Type" value={contract.renewalType} />
                                     <DetailItem label="Contact Email" value={contract.contactEmail} />
                                     <DetailItem label="Contact Phone" value={contract.contactPhone} />
+                                    <DetailItem label="Linked Insurance" value={contract.linkedInsuranceId ? insurancePolicies?.find(p => p.id === contract.linkedInsuranceId)?.name || 'Unknown' : undefined} />
                                     {contract.description && <div className="sm:col-span-2"><DetailItem label="Description" value={contract.description} /></div>}
                                     {contract.notes && <div className="sm:col-span-2"><DetailItem label="Notes" value={contract.notes} /></div>}
                                 </div>

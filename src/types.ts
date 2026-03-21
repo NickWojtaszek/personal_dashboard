@@ -484,6 +484,7 @@ export interface ContractInfo {
     minimumHours?: number;
     contactEmail?: string;
     contactPhone?: string;
+    linkedInsuranceId?: string;
 }
 
 export interface InvoiceInfo {
