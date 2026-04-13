@@ -35,6 +35,7 @@ export interface GmailMessage {
   id: string;
   threadId: string;
   labelIds: string[];
+  snippet?: string; // short text preview from Gmail
   internalDate: string; // epoch ms as string
   payload: {
     mimeType: string;
@@ -248,38 +249,40 @@ function decodeBase64Url(data: string): string {
   }
 }
 
+function collectAllData(parts: GmailMessagePart[], mimeType: string): string[] {
+  const results: string[] = [];
+  for (const part of parts) {
+    if (part.mimeType === mimeType && part.body.data) {
+      results.push(decodeBase64Url(part.body.data));
+    }
+    if (part.parts) {
+      results.push(...collectAllData(part.parts, mimeType));
+    }
+  }
+  return results;
+}
+
 function extractTextBody(payload: GmailMessage['payload']): string {
-  // Direct body
+  // Direct body (simple non-multipart message)
   if (payload.body.data) {
     return decodeBase64Url(payload.body.data);
   }
 
-  // Multipart — prefer text/plain, fallback to text/html stripped
   if (payload.parts) {
-    const plainPart = findPart(payload.parts, 'text/plain');
-    if (plainPart?.body.data) {
-      return decodeBase64Url(plainPart.body.data);
+    // Try text/plain first — collect all parts in case there are multiple
+    const plainTexts = collectAllData(payload.parts, 'text/plain');
+    if (plainTexts.length > 0) {
+      return plainTexts.join('\n\n');
     }
 
-    const htmlPart = findPart(payload.parts, 'text/html');
-    if (htmlPart?.body.data) {
-      const html = decodeBase64Url(htmlPart.body.data);
-      return stripHtml(html);
+    // Fallback to text/html stripped
+    const htmlTexts = collectAllData(payload.parts, 'text/html');
+    if (htmlTexts.length > 0) {
+      return stripHtml(htmlTexts.join('\n\n'));
     }
   }
 
   return '';
-}
-
-function findPart(parts: GmailMessagePart[], mimeType: string): GmailMessagePart | undefined {
-  for (const part of parts) {
-    if (part.mimeType === mimeType) return part;
-    if (part.parts) {
-      const found = findPart(part.parts, mimeType);
-      if (found) return found;
-    }
-  }
-  return undefined;
 }
 
 function stripHtml(html: string): string {
@@ -344,6 +347,9 @@ export function parseGmailMessage(msg: GmailMessage): ParsedEmail {
   const dateStr = getHeader(headers, 'Date');
   const date = dateStr ? new Date(dateStr).toISOString().split('T')[0] : '';
 
+  // Extract body with snippet as last-resort fallback
+  const body = extractTextBody(msg.payload) || msg.snippet || '';
+
   return {
     id: msg.id,
     threadId: msg.threadId,
@@ -351,7 +357,7 @@ export function parseGmailMessage(msg: GmailMessage): ParsedEmail {
     from: getHeader(headers, 'From'),
     to: getHeader(headers, 'To'),
     subject: getHeader(headers, 'Subject'),
-    body: extractTextBody(msg.payload),
+    body,
     labelIds: msg.labelIds || [],
     attachments: extractAttachments(msg.payload.parts, msg.id),
   };
