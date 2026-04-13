@@ -101,33 +101,7 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
 
     const syncConfig = property.gmailSync || DEFAULT_SYNC_CONFIG;
 
-    const handleExportCorrespondence = useCallback(() => {
-        const items = [...(property.correspondence || [])].sort(
-            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-        );
-        if (items.length === 0) return;
-
-        const lines = items.map(item => {
-            const divider = '─'.repeat(80);
-            const header = [
-                `Date: ${item.date}`,
-                `From: ${item.from || '—'}`,
-                `To: ${item.to || '—'}`,
-                `Subject: ${item.subject}`,
-                item.source === 'gmail' ? `Source: Gmail` : `Source: Manual`,
-            ].join('\n');
-            return `${divider}\n${header}\n${divider}\n\n${item.body || '(no body)'}\n`;
-        });
-
-        const content = `Correspondence Export — ${property.name}\nExported: ${new Date().toISOString()}\nTotal: ${items.length} items\n\n${lines.join('\n')}`;
-        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${property.name.replace(/[^a-zA-Z0-9]/g, '_')}_correspondence.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }, [property]);
+    // handleExportCorrespondence defined after `sorted` memo below
 
     useEffect(() => {
         if (isEditing) {
@@ -452,6 +426,40 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
         return items;
     }, [allCorrespondence, sourceFilter, categoryFilter, getEmailCategory, senderFilter, searchQuery, sortField, sortDir]);
 
+    // Export the currently filtered/sorted correspondence
+    const handleExportCorrespondence = useCallback(() => {
+        if (sorted.length === 0) return;
+
+        const activeFilters: string[] = [];
+        if (sourceFilter !== 'all') activeFilters.push(`Source: ${sourceFilter}`);
+        if (categoryFilter) activeFilters.push(`Category: ${categoryFilter}`);
+        if (senderFilter) activeFilters.push(`From: ${senderFilter}`);
+        if (searchQuery.trim()) activeFilters.push(`Search: "${searchQuery}"`);
+        const filterLabel = activeFilters.length > 0 ? `Filters: ${activeFilters.join(', ')}` : 'Filters: none (all correspondence)';
+
+        const lines = sorted.map(item => {
+            const divider = '\u2500'.repeat(80);
+            const header = [
+                `Date: ${item.date}`,
+                `From: ${item.from || '\u2014'}`,
+                `To: ${item.to || '\u2014'}`,
+                `Subject: ${item.subject}`,
+                item.source === 'gmail' ? `Source: Gmail` : `Source: Manual`,
+            ].join('\n');
+            return `${divider}\n${header}\n${divider}\n\n${item.body || '(no body)'}\n`;
+        });
+
+        const content = `Correspondence Export \u2014 ${property.name}\nExported: ${new Date().toISOString()}\n${filterLabel}\nTotal: ${sorted.length} items\n\n${lines.join('\n')}`;
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const suffix = categoryFilter ? `_${categoryFilter}` : sourceFilter !== 'all' ? `_${sourceFilter}` : '';
+        a.download = `${property.name.replace(/[^a-zA-Z0-9]/g, '_')}${suffix}_correspondence.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [sorted, property.name, sourceFilter, categoryFilter, senderFilter, searchQuery]);
+
     const selectedItem = useMemo(() =>
         allCorrespondence.find(c => c.id === selectedId) || null
     , [allCorrespondence, selectedId]);
@@ -552,9 +560,9 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
                         </button>
                         <button
                             onClick={handleExportCorrespondence}
-                            disabled={(property.correspondence || []).length === 0}
+                            disabled={sorted.length === 0}
                             className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-30"
-                            title="Export all correspondence"
+                            title={`Export ${sorted.length} filtered emails`}
                         >
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                         </button>
