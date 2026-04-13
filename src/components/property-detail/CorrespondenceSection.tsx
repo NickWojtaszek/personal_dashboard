@@ -101,6 +101,34 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
 
     const syncConfig = property.gmailSync || DEFAULT_SYNC_CONFIG;
 
+    const handleExportCorrespondence = useCallback(() => {
+        const items = [...(property.correspondence || [])].sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        if (items.length === 0) return;
+
+        const lines = items.map(item => {
+            const divider = '─'.repeat(80);
+            const header = [
+                `Date: ${item.date}`,
+                `From: ${item.from || '—'}`,
+                `To: ${item.to || '—'}`,
+                `Subject: ${item.subject}`,
+                item.source === 'gmail' ? `Source: Gmail` : `Source: Manual`,
+            ].join('\n');
+            return `${divider}\n${header}\n${divider}\n\n${item.body || '(no body)'}\n`;
+        });
+
+        const content = `Correspondence Export — ${property.name}\nExported: ${new Date().toISOString()}\nTotal: ${items.length} items\n\n${lines.join('\n')}`;
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${property.name.replace(/[^a-zA-Z0-9]/g, '_')}_correspondence.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [property]);
+
     useEffect(() => {
         if (isEditing) {
             setEditedCorrespondence(JSON.parse(JSON.stringify(
@@ -521,6 +549,14 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
                             title="Gmail Settings"
                         >
                             <SettingsIcon />
+                        </button>
+                        <button
+                            onClick={handleExportCorrespondence}
+                            disabled={(property.correspondence || []).length === 0}
+                            className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-30"
+                            title="Export all correspondence"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                         </button>
                         <button onClick={onSetEditing} className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Edit Manual Items">
                             <EditIcon />
