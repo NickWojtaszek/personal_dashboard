@@ -19,8 +19,10 @@ const LONG_STR_REF_PREFIX = '__longstr__:';
 const MIN_BLOB_SIZE = 256; // Only extract data fields longer than this
 const MIN_LONG_STR_SIZE = 500; // Strip string fields longer than this to IndexedDB
 
-/** Fields that contain large text content worth offloading. */
-const LONG_STRING_FIELDS = new Set(['body', 'timeline', 'extractedText', 'summary']);
+/** Fields that contain large text content worth offloading.
+ *  Note: 'body' was removed — email bodies are typically <10KB of text
+ *  and the strip/rehydrate cycle is fragile when array indices shift. */
+const LONG_STRING_FIELDS = new Set(['timeline', 'extractedText', 'summary']);
 
 /**
  * Generate a stable key for a blob based on a path prefix and document name.
