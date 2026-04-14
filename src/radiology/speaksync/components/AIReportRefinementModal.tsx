@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 import { SpinnerIcon, CheckIcon } from './Icons';
 import { enhanceReport } from '../services/aiService';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 interface AIReportRefinementModalProps {
   isOpen: boolean;
@@ -38,8 +39,39 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState(14);
   const [copied, setCopied] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isRerunning, setIsRerunning] = useState(false);
 
   const editableRef = useRef<HTMLDivElement>(null);
+
+  // Insert transcribed dictation at cursor (or append) in the editable div
+  const onDictationFinalized = useCallback((transcript: string) => {
+    if (!editableRef.current || !transcript.trim()) return;
+    const el = editableRef.current;
+    const trimmed = transcript.trim();
+    const sel = window.getSelection();
+    const hasSelectionInsideEl = sel && sel.rangeCount > 0 && el.contains(sel.anchorNode);
+
+    if (hasSelectionInsideEl) {
+      const range = sel!.getRangeAt(0);
+      range.deleteContents();
+      const node = document.createTextNode((range.startOffset > 0 ? ' ' : '') + trimmed + ' ');
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.setEndAfter(node);
+      sel!.removeAllRanges();
+      sel!.addRange(range);
+    } else {
+      const current = el.textContent || '';
+      el.textContent = current + (current && !current.endsWith(' ') ? ' ' : '') + trimmed + ' ';
+    }
+    setEditedText(el.textContent || '');
+  }, []);
+
+  const { isListening, interimText, toggleListen, isSupported: isDictationSupported } = useSpeechRecognition({
+    onTranscriptFinalized: onDictationFinalized,
+    lang: language,
+  });
 
   // Reset state when modal opens
   useEffect(() => {
@@ -48,9 +80,34 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
       setAiImprovedText('');
       setEditedText('');
       setError(null);
+      setIsExpanded(false);
+      setIsRerunning(false);
       processAIEnhancement();
     }
   }, [isOpen, originalText]);
+
+  // Re-run AI on the current edited text (second pass)
+  const handleRerunAI = async () => {
+    if (!editedText.trim() || isRerunning) return;
+    setIsRerunning(true);
+    setError(null);
+    try {
+      const enhanced = await enhanceReport(editedText, aiPromptConfig, language, styleExamples);
+      if (enhanced && enhanced.trim()) {
+        const result = enhanced.trim();
+        setAiImprovedText(result);
+        setEditedText(result);
+        if (editableRef.current) editableRef.current.textContent = result;
+      } else {
+        setError('AI returned no improvements');
+      }
+    } catch (err) {
+      console.error('AI re-run error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to re-run AI');
+    } finally {
+      setIsRerunning(false);
+    }
+  };
 
   // AI Enhancement
   const processAIEnhancement = async () => {
@@ -143,8 +200,9 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
 
           {/* Step 2: Review & Edit */}
           {step === 'review' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className={isExpanded ? 'grid grid-cols-1 gap-6' : 'grid grid-cols-1 md:grid-cols-2 gap-6'}>
               {/* Original */}
+              {!isExpanded && (
               <div>
                 <h4 className="font-semibold text-red-300 mb-2 border-b border-red-400/30 pb-1 flex items-center gap-2">
                   Original Report
@@ -155,17 +213,59 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
                   </p>
                 </div>
               </div>
+              )}
 
               {/* AI Improved (Editable) */}
               <div>
-                <div className="flex items-center justify-between mb-2 border-b border-green-400/30 pb-1">
+                <div className="flex items-center justify-between mb-2 border-b border-green-400/30 pb-1 gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
                     <h4 className="font-semibold text-green-300">
                       AI Improved (Editable)
                     </h4>
                     <span className="text-xs text-gray-400 font-normal">Click to edit</span>
+                    {isListening && (
+                      <span className="text-xs text-red-300 font-normal animate-pulse">
+                        \u25CF Listening{interimText ? `: ${interimText.slice(0, 30)}\u2026` : '\u2026'}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {/* Expand/collapse */}
+                    <button
+                      onClick={() => setIsExpanded(prev => !prev)}
+                      className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
+                      title={isExpanded ? 'Show original' : 'Hide original (full width)'}
+                    >
+                      {isExpanded ? '\u21F2 Split' : '\u21F1 Full'}
+                    </button>
+                    {/* Dictation */}
+                    {isDictationSupported && (
+                      <button
+                        onClick={toggleListen}
+                        className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 ${isListening ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
+                        title={isListening ? 'Stop dictation' : 'Start dictation (inserts at cursor)'}
+                      >
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 1.5a3 3 0 0 0-3 3v7.5a3 3 0 1 0 6 0V4.5a3 3 0 0 0-3-3z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5v1.5a7.5 7.5 0 1 1-15 0v-1.5M12 19.5v3" />
+                        </svg>
+                        {isListening ? 'Stop' : 'Dictate'}
+                      </button>
+                    )}
+                    {/* Re-run AI */}
+                    <button
+                      onClick={handleRerunAI}
+                      disabled={isRerunning || !editedText.trim()}
+                      className="px-2 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Re-run AI on current edited text (second pass)"
+                    >
+                      {isRerunning ? <SpinnerIcon className="h-3 w-3" /> : (
+                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                        </svg>
+                      )}
+                      {isRerunning ? 'Running\u2026' : 'Re-run AI'}
+                    </button>
                     {/* Text size controls */}
                     <button
                       onClick={() => setFontSize(prev => Math.max(10, prev - 2))}
