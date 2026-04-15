@@ -6,7 +6,9 @@ import { COUNTRY_OPTIONS } from '../lib/countryLabels';
 import { openDocument } from '../lib/openDocument';
 import { extractFromPdf, Type } from '../lib/pdfExtraction';
 import { getStatusColor, daysUntil, periodProgress } from '../lib/formatting';
-import { BackIcon, TrashIcon, EditIcon, SaveIcon, DocumentIcon as DocIcon } from './Icons';
+import { BackIcon, EditIcon, SaveIcon, DocumentIcon as DocIcon } from './Icons';
+import EditableName from './ui/EditableName';
+import DeleteConfirmButton from './ui/DeleteConfirmButton';
 
 const STATUS_OPTIONS: ContractInfo['status'][] = ['Active', 'Expired', 'Pending', 'Archived'];
 
@@ -42,11 +44,8 @@ const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 const ContractDetailPage: React.FC<ContractDetailPageProps> = ({
     contract, insurancePolicies, onBack, onSaveContract, onDeleteContract,
 }) => {
-    const [editingName, setEditingName] = useState(false);
-    const [editNameValue, setEditNameValue] = useState('');
     const [isEditingInfo, setIsEditingInfo] = useState(false);
     const [editedData, setEditedData] = useState<ContractInfo>(contract);
-    const [confirmDelete, setConfirmDelete] = useState(false);
     const [aiFile, setAiFile] = useState<File | null>(null);
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
@@ -176,19 +175,7 @@ ${pdfText}`;
                     <div>
                         <div className="flex items-center gap-3 flex-wrap">
                             {contract.country && <span className="text-xl">{getCountryFlag(contract.country)}</span>}
-                            {editingName ? (
-                                <input autoFocus value={editNameValue}
-                                    onChange={e => setEditNameValue(e.target.value)}
-                                    onBlur={() => { if (editNameValue.trim()) onSaveContract({ ...contract, name: editNameValue.trim() }); setEditingName(false); }}
-                                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') setEditingName(false); }}
-                                    className="text-2xl font-bold text-slate-900 dark:text-white bg-transparent border-b-2 border-brand-primary outline-none px-0"
-                                />
-                            ) : (
-                                <h1 className="text-2xl font-bold text-slate-900 dark:text-white cursor-pointer hover:text-brand-primary transition-colors"
-                                    onClick={() => { setEditNameValue(contract.name); setEditingName(true); }}
-                                    title="Click to rename"
-                                >{contract.name}</h1>
-                            )}
+                            <EditableName value={contract.name} onSave={name => onSaveContract({ ...contract, name })} />
                             <select value={contract.country || ''} onChange={e => onSaveContract({ ...contract, country: (e.target.value || undefined) as PropertyCountry | undefined })}
                                 className="text-xs bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded px-1.5 py-0.5 text-slate-600 dark:text-slate-300 cursor-pointer outline-none" title="Country/region">
                                 <option value="">Region</option>
@@ -212,17 +199,7 @@ ${pdfText}`;
                             </button>
                         )}
                         {onDeleteContract && (
-                            confirmDelete ? (
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-xs text-red-600 dark:text-red-400">Delete?</span>
-                                    <button onClick={() => onDeleteContract(contract.id)} className="px-2 py-1 text-xs font-medium rounded bg-red-600 text-white hover:bg-red-700">Yes</button>
-                                    <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 text-xs font-medium rounded bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-gray-200">No</button>
-                                </div>
-                            ) : (
-                                <button onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                    <TrashIcon /> Delete
-                                </button>
-                            )
+                            <DeleteConfirmButton onConfirm={() => onDeleteContract(contract.id)} />
                         )}
                     </div>
                 </div>
