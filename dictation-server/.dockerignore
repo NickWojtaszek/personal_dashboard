@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+*.wav
+*.mp3
+*.webm
+*.m4a
+.env
+.env.local
+README.md

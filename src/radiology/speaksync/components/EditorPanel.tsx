@@ -274,7 +274,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   // Use radiologyTerms for grammar injection. useDictation routes between
   // the browser Web Speech API and the local Whisper server based on the
   // user's settings (with auto-fallback to browser if server unreachable).
-  const { isListening, interimText, error, toggleListen, isAlwaysOn, setIsAlwaysOn, isSupported, mode: dictationMode, serverLatency } = useDictation({
+  const { isListening, interimText, error, toggleListen, isAlwaysOn, setIsAlwaysOn, isSupported, mode: dictationMode, serverLatency, isProcessing: serverProcessing } = useDictation({
     onTranscriptFinalized,
     lang: supportedLanguages[language].speechCode,
     vocabulary: radiologyTerms,
@@ -817,12 +817,20 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             <TranscriptionModeSelector lastLatencyMs={serverLatency} compact={layoutDensity === 'compact'} />
             <button
               onClick={handleToggleListen}
-              className={`relative px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 font-semibold ${isListening ? 'bg-red-600 shadow-lg shadow-red-500/50 text-white' : dictationMode === 'server' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+              disabled={serverProcessing}
+              className={`relative px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 font-semibold ${serverProcessing ? 'bg-purple-500/60 text-white cursor-wait' : isListening ? 'bg-red-600 shadow-lg shadow-red-500/50 text-white' : dictationMode === 'server' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
               title={`${t('editor.pressToTalk')} (${hotkeys.toggleRecord})${dictationMode === 'server' ? ' \u2014 server mode' : ''}`}
             >
               <div className={`absolute inset-0 rounded-lg border-2 border-white/30 ${isListening ? 'animate-pulse' : 'hidden'}`}></div>
-              {isListening ? <StopIcon className={micIconSize} /> : <MicrophoneIcon className={micIconSize} />}
-              <span className={layoutDensity === 'compact' ? 'hidden sm:inline text-sm' : 'text-sm'}>{isListening ? t('editor.recording') : t('editor.pressToTalk')}</span>
+              {serverProcessing ? (
+                <svg className="animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z"></path>
+                </svg>
+              ) : isListening ? <StopIcon className={micIconSize} /> : <MicrophoneIcon className={micIconSize} />}
+              <span className={layoutDensity === 'compact' ? 'hidden sm:inline text-sm' : 'text-sm'}>
+                  {serverProcessing ? 'Processing\u2026' : isListening ? t('editor.recording') : t('editor.pressToTalk')}
+              </span>
             </button>
             <button
               onClick={() => setIsAlwaysOn(!isAlwaysOn)}
@@ -916,8 +924,27 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
               </button>
           </div>
       </div>
-      <div className="h-5 text-center text-xs text-gray-400 pt-1">
-          {error ? <span className="text-red-400">{error}</span> : isListening ? <span className="text-voice">{interimText || t('editor.listening')}</span> : hasText ? '' : ''}
+      <div className="h-5 text-center text-xs text-gray-400 pt-1 flex items-center justify-center gap-2">
+          {error ? (
+              <span className="text-red-400 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-1-9a.75.75 0 0 0-.75.75v4.5a.75.75 0 0 0 1.5 0v-4.5A.75.75 0 0 0 10 5Z" clipRule="evenodd" />
+                  </svg>
+                  {dictationMode === 'server' ? `Server: ${error}` : error}
+              </span>
+          ) : serverProcessing ? (
+              <span className="text-purple-300 flex items-center gap-1.5">
+                  <svg className="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z"></path>
+                  </svg>
+                  Transcribing on server&hellip;
+              </span>
+          ) : isListening ? (
+              <span className={dictationMode === 'server' ? 'text-purple-300' : 'text-voice'}>
+                  {interimText || (dictationMode === 'server' ? t('editor.recording') : t('editor.listening'))}
+              </span>
+          ) : null}
       </div>
       
       <div className={`relative w-full flex-grow min-h-0 grid ${getGridClass()} overflow-hidden`} style={{ borderColor: currentTheme.colors.borderColor, borderTopWidth: '1px' }}>
