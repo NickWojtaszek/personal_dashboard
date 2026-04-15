@@ -1,11 +1,8 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import type { VehicleInfo, Document } from '../../types';
 import { MagicWandIcon, UploadCloudIcon, DocumentTextIcon, TrashIcon } from '../insurance-detail/Icons';
-import { GoogleGenAI, Type } from "@google/genai";
-import * as pdfjs from 'pdfjs-dist';
+import { Type, extractFromPdf } from '../../lib/pdfExtraction';
 import type { RegoDocType } from '../NewRegistrationModal';
-
-pdfjs.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.5.136/build/pdf.worker.mjs';
 
 export interface RegoExtractedData extends Partial<VehicleInfo> {
     document?: Document;
@@ -60,16 +57,6 @@ const paymentSchema = {
     },
 };
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
-
 const RegoAIAssistantSection: React.FC<RegoAIAssistantSectionProps> = ({
     onDataExtracted, pendingFile, pendingDocType, onPendingFileConsumed, hasRenewalDoc, hasPaymentDoc
 }) => {
@@ -120,28 +107,8 @@ const RegoAIAssistantSection: React.FC<RegoAIAssistantSectionProps> = ({
         setSuccessMessage(null);
 
         try {
-            const arrayBuffer = await file.arrayBuffer();
-            const base64Data = arrayBufferToBase64(arrayBuffer);
-            const documentToStore: Document = {
-                name: file.name,
-                url: '#',
-                data: base64Data,
-                mimeType: 'application/pdf',
-            };
-
-            const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-            const pdf = await loadingTask.promise;
-            let pdfText = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                pdfText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
-            }
-
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-
             const isRenewal = docType === 'renewal';
-            const prompt = isRenewal
+            const buildPrompt = (pdfText: string) => isRenewal
                 ? `Extract vehicle registration RENEWAL NOTICE details from the text below.
 This document contains fee breakdowns, vehicle details, CTP info, and pricing for 6 and 12 month terms.
 
@@ -166,18 +133,11 @@ Rules:
 Document text:
 ${pdfText}`;
 
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: prompt,
-                config: {
-                    temperature: 0.1,
-                    responseMimeType: "application/json",
-                    responseSchema: isRenewal ? renewalSchema : paymentSchema,
-                },
-            });
-
-            const jsonStr = response.text.trim();
-            const extractedData = JSON.parse(jsonStr) as Partial<VehicleInfo>;
+            const { data: extractedData, document: documentToStore } = await extractFromPdf<Partial<VehicleInfo>>(
+                file,
+                buildPrompt,
+                isRenewal ? renewalSchema : paymentSchema
+            );
 
             onDataExtracted({ ...extractedData, document: documentToStore, _docType: docType });
 

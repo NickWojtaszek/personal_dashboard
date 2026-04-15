@@ -1,10 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import type { InvoiceInfo, Document } from '../types';
+import type { InvoiceInfo } from '../types';
 import { v4 as uuidv4 } from 'uuid';
-import { GoogleGenAI, Type } from "@google/genai";
-import * as pdfjs from 'pdfjs-dist';
-
-pdfjs.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.5.136/build/pdf.worker.mjs';
+import { Type, extractFromPdf, arrayBufferToBase64 } from '../lib/pdfExtraction';
 
 const CURRENCY_OPTIONS = ['GBP', 'AUD', 'USD', 'EUR', 'PLN'];
 
@@ -29,15 +26,6 @@ const UploadIcon = () => (
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
     </svg>
 );
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
 
 const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({ onClose, onCreate, allGroups }) => {
     const [currency, setCurrency] = useState('AUD');
@@ -71,28 +59,7 @@ const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({ onClose, onCreate, al
         setError(null);
 
         try {
-            const arrayBuffer = await file.arrayBuffer();
-            const base64Data = arrayBufferToBase64(arrayBuffer);
-            const documentToStore: Document = {
-                name: file.name,
-                url: '#',
-                data: base64Data,
-                mimeType: 'application/pdf',
-            };
-
-            // Extract text from PDF
-            const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
-            const pdf = await loadingTask.promise;
-            let pdfText = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const textContent = await page.getTextContent();
-                pdfText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
-            }
-
-            // Send to Gemini
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-            const prompt = `Extract purchase/invoice details from the text below. Rules:
+            const buildPrompt = (pdfText: string) => `Extract purchase/invoice details from the text below. Rules:
 - For "description": provide a concise summary of what was purchased or the service provided.
 - Format the date as YYYY-MM-DD.
 - The amount must be a plain number without currency symbols.
@@ -102,22 +69,12 @@ const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({ onClose, onCreate, al
 Invoice/receipt text:
 ${pdfText}`;
 
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: prompt,
-                config: {
-                    temperature: 0.1,
-                    responseMimeType: "application/json",
-                    responseSchema: invoiceSchema,
-                },
-            });
-
-            const extracted = JSON.parse(response.text.trim()) as {
+            const { data: extracted, document: documentToStore } = await extractFromPdf<{
                 description?: string;
                 purchaseDate?: string;
                 amount?: number;
                 category?: string;
-            };
+            }>(file, buildPrompt, invoiceSchema);
 
             // Build the invoice
             const newInvoice: InvoiceInfo = {

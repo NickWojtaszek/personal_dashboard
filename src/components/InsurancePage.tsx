@@ -3,7 +3,8 @@ import type { InsuranceInfo } from '../types';
 import InsuranceGrid from './InsuranceGrid';
 import PolicyProgressBar from './insurance-detail/PolicyProgressBar';
 import Button from './ui/Button';
-import { ListIcon, PlusIcon } from './Icons';
+import { ListIcon, PlusIcon, TilesIcon, SearchIcon } from './Icons';
+import { getStatusColor, formatCurrency as fmtCurrency } from '../lib/formatting';
 
 interface InsurancePageProps {
     policies: InsuranceInfo[];
@@ -27,36 +28,8 @@ const SORT_OPTIONS = [
     { value: 'due_date', label: 'Due Date' },
 ];
 
-const TilesIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
-    </svg>
-);
-
-const SearchIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-    </svg>
-);
-
-const getStatusColor = (status?: string) => {
-    switch (status) {
-        case 'Active': return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
-        case 'Expired': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300';
-        case 'Pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300';
-        default: return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
-    }
-};
-
-const CURRENCY_SYMBOLS: Record<string, string> = {
-    GBP: '\u00a3', USD: '$', AUD: 'A$', EUR: '\u20ac', PLN: 'z\u0142',
-};
-
-const formatCurrency = (amount?: number, currency?: string) => {
-    if (typeof amount !== 'number') return '\u2014';
-    const symbol = CURRENCY_SYMBOLS[currency || 'GBP'] || (currency ? `${currency} ` : '\u00a3');
-    return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+// Insurance page uses 2-decimal currency formatting
+const formatCurrency = (amount?: number, currency?: string) => fmtCurrency(amount, currency, { decimals: 2 });
 
 // --- List View Row ---
 const InsuranceListRow: React.FC<{

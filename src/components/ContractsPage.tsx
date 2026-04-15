@@ -3,6 +3,7 @@ import type { ContractInfo } from '../types';
 import ContractCard from './ContractCard';
 import { ListIcon, TilesIcon, PlusIcon, SearchIcon } from './Icons';
 import { getCountryBorder, getCountryFlag } from '../lib/countryColors';
+import { getStatusColor, daysUntil, periodProgress as contractProgress } from '../lib/formatting';
 
 interface ContractsPageProps {
     contracts: ContractInfo[];
@@ -24,31 +25,6 @@ const SORT_OPTIONS = [
     { value: 'signedDate', label: 'Signed Date' },
     { value: 'status', label: 'Status' },
 ];
-
-const getStatusColor = (status?: string) => {
-    switch (status) {
-        case 'Active': return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
-        case 'Expired': return 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300';
-        case 'Pending': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300';
-        case 'Archived': return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
-        default: return 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300';
-    }
-};
-
-function daysUntil(dateStr?: string): number | null {
-    if (!dateStr) return null;
-    const diff = new Date(dateStr).getTime() - Date.now();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-function contractProgress(start?: string, end?: string): number | null {
-    if (!start || !end) return null;
-    const s = new Date(start).getTime();
-    const e = new Date(end).getTime();
-    const now = Date.now();
-    if (e <= s) return 100;
-    return Math.max(0, Math.min(100, ((now - s) / (e - s)) * 100));
-}
 
 const ContractListRow: React.FC<{ contract: ContractInfo; onSelect: (id: string) => void }> = ({ contract, onSelect }) => {
     const days = daysUntil(contract.expirationDate);
