@@ -272,14 +272,73 @@ async def list_models() -> ModelsResponse:
     return ModelsResponse(available=AVAILABLE_MODELS, current=engine.model_name)
 
 
+MODEL_MIN_FREE_RAM_MB = {
+    "tiny": 400,
+    "tiny.en": 400,
+    "base": 600,
+    "base.en": 600,
+    "small": 1200,
+    "small.en": 1200,
+    "medium": 3000,
+    "medium.en": 3000,
+    "large-v2": 5500,
+    "large-v3": 5500,
+    "large-v3-turbo": 2500,
+    "distil-large-v3": 2000,
+}
+
+
+def _available_ram_mb() -> Optional[int]:
+    """Best-effort free-RAM probe. Returns None if we can't measure."""
+    try:
+        import psutil
+        return int(psutil.virtual_memory().available / (1024 * 1024))
+    except ImportError:
+        pass
+    try:
+        # Linux-only fallback
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    kb = int(line.split()[1])
+                    return kb // 1024
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 @app.post("/model", response_model=ModelsResponse)
 async def set_model(req: ReloadRequest) -> ModelsResponse:
     if req.model not in AVAILABLE_MODELS:
         raise HTTPException(status_code=400, detail=f"Unknown model '{req.model}'. Available: {', '.join(AVAILABLE_MODELS)}")
     if req.model == engine.model_name:
         return ModelsResponse(available=AVAILABLE_MODELS, current=engine.model_name)
+
+    # Preflight memory check: refuse models that definitely won't fit.
+    required_mb = MODEL_MIN_FREE_RAM_MB.get(req.model)
+    available_mb = _available_ram_mb()
+    if required_mb and available_mb is not None and available_mb < required_mb:
+        raise HTTPException(
+            status_code=507,  # Insufficient Storage
+            detail=(
+                f"Not enough free RAM for '{req.model}': needs ~{required_mb} MB, only {available_mb} MB free. "
+                f"Close other apps or pick a smaller model."
+            ),
+        )
+
     try:
         await engine.reload(req.model)
+    except MemoryError as e:
+        log.exception("Model reload failed (OOM)")
+        # Try to recover to the previous model so the server stays usable
+        try:
+            await engine.reload(settings.whisper_model)
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=507,
+            detail=f"'{req.model}' ran out of memory during load. Falling back to '{engine.model_name}'.",
+        )
     except Exception as e:
         log.exception("Model reload failed")
         raise HTTPException(status_code=500, detail=f"Model reload failed: {e}")
@@ -324,6 +383,19 @@ async def transcribe(
 
         try:
             text, confidence, lang_detected, duration = await engine.transcribe(tmp_path, language)
+        except (MemoryError, RuntimeError) as e:
+            # Includes mkl_malloc allocation failures and ctranslate2 OOM
+            msg = str(e)
+            log.exception("Transcription failed (likely OOM)")
+            if "malloc" in msg.lower() or "memory" in msg.lower():
+                raise HTTPException(
+                    status_code=507,
+                    detail=(
+                        f"'{engine.model_name}' ran out of memory mid-transcription. "
+                        f"Switch to a smaller model (small or base) and try again."
+                    ),
+                )
+            raise HTTPException(status_code=500, detail=f"Transcription failed: {msg}")
         except Exception as e:
             log.exception("Transcription failed")
             raise HTTPException(status_code=500, detail=f"Transcription failed: {e}")
