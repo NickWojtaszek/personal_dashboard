@@ -821,19 +821,19 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             )}
             <button
               onClick={handleToggleListen}
-              disabled={serverProcessing}
-              className={`relative px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 font-semibold ${serverProcessing ? 'bg-purple-500/60 text-white cursor-wait' : isListening ? 'bg-red-600 shadow-lg shadow-red-500/50 text-white' : dictationMode === 'server' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-              title={`${t('editor.pressToTalk')} (${hotkeys.toggleRecord})${dictationMode === 'server' ? ' \u2014 server mode' : ''}`}
+              className={`relative px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 font-semibold ${isListening ? 'bg-red-600 shadow-lg shadow-red-500/50 text-white' : dictationMode === 'server' && serverProcessing ? 'bg-purple-500/70 text-white cursor-wait' : dictationMode === 'server' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+              disabled={!isListening && dictationMode === 'server' && serverProcessing}
+              title={`${t('editor.pressToTalk')} (${hotkeys.toggleRecord})${dictationMode === 'server' ? ' \u2014 server mode (continuous)' : ''}`}
             >
               <div className={`absolute inset-0 rounded-lg border-2 border-white/30 ${isListening ? 'animate-pulse' : 'hidden'}`}></div>
-              {serverProcessing ? (
+              {!isListening && dictationMode === 'server' && serverProcessing ? (
                 <svg className="animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z"></path>
                 </svg>
               ) : isListening ? <StopIcon className={micIconSize} /> : <MicrophoneIcon className={micIconSize} />}
               <span className={layoutDensity === 'compact' ? 'hidden sm:inline text-sm' : 'text-sm'}>
-                  {serverProcessing ? 'Processing\u2026' : isListening ? t('editor.recording') : t('editor.pressToTalk')}
+                  {!isListening && dictationMode === 'server' && serverProcessing ? 'Finishing\u2026' : isListening ? t('editor.recording') : t('editor.pressToTalk')}
               </span>
             </button>
             <button
@@ -952,17 +952,25 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                       >\u00d7</button>
                   )}
               </span>
-          ) : serverProcessing ? (
+          ) : isListening && dictationMode === 'server' ? (
+              <span className="text-purple-300 flex items-center gap-1.5">
+                  <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+                  </span>
+                  Recording (auto-segmenting every 6s){serverProcessing ? ' \u00b7 transcribing\u2026' : ''}
+              </span>
+          ) : !isListening && serverProcessing ? (
               <span className="text-purple-300 flex items-center gap-1.5">
                   <svg className="animate-spin w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z"></path>
                   </svg>
-                  Transcribing on server&hellip;
+                  Finishing final segment&hellip;
               </span>
           ) : isListening ? (
-              <span className={dictationMode === 'server' ? 'text-purple-300' : 'text-voice'}>
-                  {interimText || (dictationMode === 'server' ? t('editor.recording') : t('editor.listening'))}
+              <span className="text-voice">
+                  {interimText || t('editor.listening')}
               </span>
           ) : null}
       </div>

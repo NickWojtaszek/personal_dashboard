@@ -72,7 +72,8 @@ export async function transcribe(
     // Filename hints the server's extension picker for tempfile suffix.
     const filename = mimeToFilename(audio.type);
     form.append('audio', audio, filename);
-    form.append('language', language || 'en');
+    // Whisper expects bare language codes ("pl"), not region variants ("pl-PL")
+    form.append('language', normalizeLanguage(language));
     form.append('correct', correct ? 'true' : 'false');
 
     const res = await fetch(`${trimTrailingSlash(serverUrl)}/transcribe`, {
@@ -93,6 +94,13 @@ export async function transcribe(
     }
 
     return (await res.json()) as TranscribeResponse;
+}
+
+/** "pl-PL" -> "pl", "en-US" -> "en", "en" -> "en". Empty becomes "en". */
+function normalizeLanguage(lang: string): string {
+    if (!lang) return 'en';
+    const base = lang.toLowerCase().split(/[-_]/)[0];
+    return base || 'en';
 }
 
 function mimeToFilename(mime: string): string {

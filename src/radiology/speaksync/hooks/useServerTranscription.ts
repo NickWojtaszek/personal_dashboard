@@ -1,14 +1,20 @@
 /**
- * Push-to-talk dictation backed by the local Whisper server.
+ * Continuous-dictation hook backed by the local Whisper server.
  *
- * - getUserMedia for the mic
- * - MediaRecorder records the whole utterance (no timeslice — single
- *   `dataavailable` event on stop with the full blob)
- * - On stop, POSTs the blob to /transcribe and forwards corrected_text
- *   to the parent via `onTranscriptFinalized(text, "server")`
+ * Press record once. Audio is captured and split into ~6-second
+ * segments automatically. Each segment is POSTed to /transcribe
+ * in the background; text appears in the editor as each segment
+ * comes back. Press stop to end.
  *
- * Same surface as `useSpeechRecognition` so a router hook can swap
- * between the two without the editor caring which is active.
+ * Segments are sent sequentially (one request in flight at a time)
+ * so transcripts arrive in the order they were spoken, even if the
+ * server is slow on a particular segment.
+ *
+ * Trade-off vs. true streaming: there's a ~50 ms gap between
+ * segments where we stop the MediaRecorder and start a new one.
+ * In natural dictation that gap usually lands in a pause, but you
+ * may occasionally lose a syllable. For radiology where pauses
+ * are frequent this is acceptable.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -21,10 +27,13 @@ interface UseServerTranscriptionProps {
     serverUrl: string;
     enabled: boolean;
     correct?: boolean;
+    /** Segment length in ms. ~6s is a reasonable balance of latency vs. Whisper accuracy. */
+    segmentMs?: number;
     onTranscribed?: (response: TranscribeResponse) => void;
 }
 
 const HEALTH_POLL_MS = 30_000;
+const DEFAULT_SEGMENT_MS = 6000;
 
 function pickMimeType(): string {
     const candidates = [
@@ -51,6 +60,7 @@ export const useServerTranscription = ({
     serverUrl,
     enabled,
     correct = true,
+    segmentMs = DEFAULT_SEGMENT_MS,
     onTranscribed,
 }: UseServerTranscriptionProps) => {
     const [isListening, setIsListening] = useState(false);
@@ -61,10 +71,12 @@ export const useServerTranscription = ({
     const [permissionDenied, setPermissionDenied] = useState(false);
     const [lastResponse, setLastResponse] = useState<TranscribeResponse | null>(null);
 
-    const recorderRef = useRef<MediaRecorder | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const chunksRef = useRef<Blob[]>([]);
-    const intentionalStop = useRef(false);
+    const recorderRef = useRef<MediaRecorder | null>(null);
+    const rotateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isListeningRef = useRef(false); // synchronous access for onstop callback
+    const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
+    const inFlightCountRef = useRef(0);
     const isSupported = typeof MediaRecorder !== 'undefined' && typeof navigator?.mediaDevices?.getUserMedia === 'function';
 
     // Health polling — only when enabled. Re-checks on visibility change too.
@@ -102,30 +114,80 @@ export const useServerTranscription = ({
         }
     }, []);
 
-    const sendBlob = useCallback(async (blob: Blob) => {
-        if (!blob || blob.size === 0) {
-            setIsProcessing(false);
-            return;
-        }
+    // Enqueue a segment blob for sequential sending. The text from each
+    // segment is forwarded to the editor in the order segments were spoken.
+    const enqueueSegment = useCallback((blob: Blob) => {
+        if (!blob || blob.size === 0) return;
+        inFlightCountRef.current += 1;
         setIsProcessing(true);
-        setError(null);
-        try {
-            const result = await transcribe(serverUrl, blob, lang || 'en', correct);
-            setServerLatency(result.processing_ms);
-            setLastResponse(result);
-            const text = result.corrected_text || result.raw_text;
-            if (text && text.trim()) {
-                onTranscriptFinalized(text, 'server');
+        sendQueueRef.current = sendQueueRef.current.then(async () => {
+            try {
+                const result = await transcribe(serverUrl, blob, lang || 'en', correct);
+                setServerLatency(result.processing_ms);
+                setLastResponse(result);
+                const text = result.corrected_text || result.raw_text;
+                if (text && text.trim()) {
+                    onTranscriptFinalized(text, 'server');
+                }
+                onTranscribed?.(result);
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                setError(msg);
+                console.error('[serverTranscription] segment failed:', err);
+            } finally {
+                inFlightCountRef.current -= 1;
+                if (inFlightCountRef.current <= 0) {
+                    inFlightCountRef.current = 0;
+                    setIsProcessing(false);
+                }
             }
-            onTranscribed?.(result);
-        } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            setError(msg);
-            console.error('[serverTranscription] transcribe failed:', err);
-        } finally {
-            setIsProcessing(false);
-        }
+        });
     }, [serverUrl, lang, correct, onTranscriptFinalized, onTranscribed]);
+
+    // Start a new MediaRecorder cycle. On stop, either enqueue + restart
+    // (if still listening) or enqueue only (if user stopped).
+    const startRecorder = useCallback(() => {
+        const stream = streamRef.current;
+        if (!stream) return;
+
+        const mimeType = pickMimeType();
+        const recorder = mimeType
+            ? new MediaRecorder(stream, { mimeType })
+            : new MediaRecorder(stream);
+        recorderRef.current = recorder;
+
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = (ev: BlobEvent) => {
+            if (ev.data && ev.data.size > 0) chunks.push(ev.data);
+        };
+
+        recorder.onstop = () => {
+            const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+            enqueueSegment(blob);
+
+            if (isListeningRef.current) {
+                // Start the next segment immediately
+                startRecorder();
+                // Schedule the next rotate
+                rotateTimeoutRef.current = setTimeout(() => {
+                    if (isListeningRef.current && recorderRef.current?.state === 'recording') {
+                        try { recorderRef.current.stop(); } catch { /* ignore */ }
+                    }
+                }, segmentMs);
+            } else {
+                // User stopped — release the stream now that final blob is queued
+                releaseStream();
+                recorderRef.current = null;
+            }
+        };
+
+        recorder.onerror = (ev: Event) => {
+            console.error('[serverTranscription] recorder error:', ev);
+            setError('Recorder error');
+        };
+
+        recorder.start();
+    }, [enqueueSegment, segmentMs, releaseStream]);
 
     const start = useCallback(async () => {
         if (!enabled) return;
@@ -133,43 +195,25 @@ export const useServerTranscription = ({
             setError('MediaRecorder API not supported in this browser');
             return;
         }
-        if (isListening) return;
+        if (isListeningRef.current) return;
 
         setError(null);
         setPermissionDenied(false);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
-            chunksRef.current = [];
-            intentionalStop.current = false;
 
-            const mimeType = pickMimeType();
-            const recorder = mimeType
-                ? new MediaRecorder(stream, { mimeType })
-                : new MediaRecorder(stream);
-            recorderRef.current = recorder;
-
-            recorder.ondataavailable = (ev: BlobEvent) => {
-                if (ev.data && ev.data.size > 0) chunksRef.current.push(ev.data);
-            };
-
-            recorder.onstop = async () => {
-                const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
-                chunksRef.current = [];
-                releaseStream();
-                await sendBlob(blob);
-            };
-
-            recorder.onerror = (ev: Event) => {
-                console.error('[serverTranscription] recorder error:', ev);
-                setError('Recorder error');
-                setIsListening(false);
-                releaseStream();
-            };
-
-            // No timeslice → single dataavailable event when stop() is called
-            recorder.start();
+            isListeningRef.current = true;
             setIsListening(true);
+
+            startRecorder();
+
+            // First rotation after segmentMs
+            rotateTimeoutRef.current = setTimeout(() => {
+                if (isListeningRef.current && recorderRef.current?.state === 'recording') {
+                    try { recorderRef.current.stop(); } catch { /* ignore */ }
+                }
+            }, segmentMs);
         } catch (err) {
             const name = (err as DOMException)?.name;
             if (name === 'NotAllowedError' || name === 'SecurityError') {
@@ -179,33 +223,44 @@ export const useServerTranscription = ({
                 setError(err instanceof Error ? err.message : 'Failed to start recording');
             }
             releaseStream();
+            isListeningRef.current = false;
             setIsListening(false);
         }
-    }, [enabled, isSupported, isListening, releaseStream, sendBlob]);
+    }, [enabled, isSupported, releaseStream, startRecorder, segmentMs]);
+
+    const stop = useCallback(() => {
+        isListeningRef.current = false;
+        setIsListening(false);
+
+        if (rotateTimeoutRef.current) {
+            clearTimeout(rotateTimeoutRef.current);
+            rotateTimeoutRef.current = null;
+        }
+
+        const recorder = recorderRef.current;
+        if (recorder && recorder.state !== 'inactive') {
+            try {
+                recorder.stop();
+                // onstop will enqueue the final blob and release the stream
+            } catch (err) {
+                console.warn('[serverTranscription] stop failed:', err);
+                releaseStream();
+            }
+        } else {
+            releaseStream();
+            recorderRef.current = null;
+        }
+    }, [releaseStream]);
+
+    const toggleListen = useCallback(() => {
+        if (isListeningRef.current) stop();
+        else start();
+    }, [start, stop]);
 
     const clearError = useCallback(() => {
         setError(null);
         setPermissionDenied(false);
     }, []);
-
-    const stop = useCallback(() => {
-        if (!recorderRef.current || recorderRef.current.state === 'inactive') {
-            setIsListening(false);
-            return;
-        }
-        intentionalStop.current = true;
-        try {
-            recorderRef.current.stop();
-        } catch (err) {
-            console.warn('[serverTranscription] stop failed:', err);
-        }
-        setIsListening(false);
-    }, []);
-
-    const toggleListen = useCallback(() => {
-        if (isListening) stop();
-        else start();
-    }, [isListening, start, stop]);
 
     // Cleanup on unmount or when disabled
     useEffect(() => {
@@ -214,9 +269,8 @@ export const useServerTranscription = ({
         }
         return () => {
             stop();
-            releaseStream();
         };
-    }, [enabled, stop, releaseStream]);
+    }, [enabled, stop]);
 
     return {
         // Shared interface with useSpeechRecognition
