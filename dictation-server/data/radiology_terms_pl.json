@@ -1,0 +1,22 @@
+{
+  "_comment": "Aspirational starter file. Grow from observed corrections (run MVP for ~1 week, log user edits, add the most-frequent misheard terms here).",
+  "terms": {
+    "tomografia": ["tomografja"],
+    "rezonansu": ["rezonans"],
+    "kontrast": ["kontrust"],
+    "wzmocnienie": ["wzmocnenie"],
+    "z\u0142o\u015bliwy": ["zlosliwy"],
+    "\u0142agodny": ["lagodny"],
+    "guzek": ["guzeg"],
+    "naciek": ["nacjek"]
+  },
+  "abbreviations": {
+    "centymetr": "cm",
+    "centymetry": "cm",
+    "milimetr": "mm",
+    "milimetry": "mm",
+    "tomografia komputerowa": "TK",
+    "rezonans magnetyczny": "MR"
+  },
+  "number_patterns": {}
+}

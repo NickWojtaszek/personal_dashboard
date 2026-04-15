@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useCallback, useEffect } from 'react';
-import type { CustomCommand, AIPromptConfig, ColorSettings, SettingsData, LayoutDensity, HotkeysConfig, StyleExample, AISettings } from '../types';
+import type { CustomCommand, AIPromptConfig, ColorSettings, SettingsData, LayoutDensity, HotkeysConfig, StyleExample, AISettings, DictationSettings } from '../types';
 import { initialAIPromptConfigs } from '../data/promptData';
 import { useStorage } from '../hooks/useStorage';
 import { useTranslations } from './LanguageContext';
@@ -26,6 +26,8 @@ interface SettingsContextType {
     updateStyleExamples: (examples: StyleExample[]) => void;
     clearStyleExamples: () => void;
     isStyleTrainingLimitReached: boolean;
+    dictation: DictationSettings;
+    setDictation: (settings: DictationSettings) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -52,7 +54,11 @@ const initialSettingsData: SettingsData = {
         triggerAI: 'Alt+A',
         toggleLayout: 'Alt+L'
     },
-    styleExamples: []
+    styleExamples: [],
+    dictation: {
+        mode: 'browser',
+        serverUrl: 'http://localhost:8000'
+    }
 };
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -133,6 +139,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setData(prev => ({ ...prev, styleExamples: [] }));
     };
 
+    const setDictation = (newSettings: DictationSettings) => {
+        setData(prev => ({ ...prev, dictation: newSettings }));
+    };
+
     const isStyleTrainingLimitReached = (data.styleExamples || []).length >= 20;
 
     const hotkeys = data.hotkeys || initialSettingsData.hotkeys;
@@ -162,7 +172,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         removeStyleExample,
         updateStyleExamples,
         clearStyleExamples,
-        isStyleTrainingLimitReached
+        isStyleTrainingLimitReached,
+        dictation: data.dictation || initialSettingsData.dictation!,
+        setDictation,
     };
 
     return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

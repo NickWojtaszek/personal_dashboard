@@ -98,6 +98,7 @@ const SettingsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
     document.documentElement.style.setProperty('--voice-color', colorSettings.voice);
     document.documentElement.style.setProperty('--pasted-color', colorSettings.pasted);
     document.documentElement.style.setProperty('--dragged-color', colorSettings.dragged || '#fde047');
+    document.documentElement.style.setProperty('--server-color', colorSettings.server || '#a78bfa');
   }, [colorSettings]);
 
   const handleAddCommand = () => {

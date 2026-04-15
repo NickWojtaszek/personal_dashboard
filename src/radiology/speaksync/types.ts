@@ -149,6 +149,14 @@ export interface ColorSettings {
   voice: string;
   pasted: string;
   dragged: string;
+  server?: string;
+}
+
+export type DictationMode = 'browser' | 'server';
+
+export interface DictationSettings {
+  mode: DictationMode;
+  serverUrl: string;
 }
 
 export interface HotkeysConfig {
@@ -186,6 +194,7 @@ export interface SettingsData {
   layoutDensity: LayoutDensity;
   styleExamples: StyleExample[];
   aiSettings: AISettings;
+  dictation?: DictationSettings;
 }
 
 export type UserProfile = TemplateData & StudyData & SettingsData;

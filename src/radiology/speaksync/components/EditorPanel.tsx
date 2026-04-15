@@ -13,7 +13,8 @@ import { useStudy } from '../context/StudyContext';
 
 import { useTemplate } from '../context/TemplateContext';
 import { extractAndValidateStudyCode } from '../utils/studyCodeExtractor';
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useDictation } from '../hooks/useDictation';
+import TranscriptionModeSelector from './TranscriptionModeSelector';
 import { enhanceReport, correctSelection as correctSelectionWithAI, checkGrammar } from '../services/aiService';
 import GrammarTooltip from './GrammarTooltip';
 import { useTheme } from '../context/ThemeContext';
@@ -223,7 +224,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       }
   };
 
-  const onTranscriptFinalized = useCallback((transcript: string) => {
+  const onTranscriptFinalized = useCallback((transcript: string, source: 'voice' | 'server' = 'voice') => {
     const punctuationCommands = supportedLanguages[language].punctuationCommands;
     const allCommands = [...punctuationCommands, ...customCommands];
     
@@ -259,18 +260,21 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     processed = applySimpleCorrectionsToText(processed, context);
 
     if (processed) {
-        const htmlToInsert = `<span class="text-voice">${processed}</span>`;
+        const cssClass = source === 'server' ? 'text-server' : 'text-voice';
+        const htmlToInsert = `<span class="${cssClass}">${processed}</span>`;
         if (editorRef.current) {
             editorRef.current.focus();
             insertHtmlAtCursor(htmlToInsert);
-            // Manually update text state to include voice input
+            // Manually update text state to include the dictated input
             editorRef.current.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
         }
     }
   }, [language, customCommands, supportedLanguages]);
 
-  // Use radiologyTerms for grammar injection
-  const { isListening, interimText, error, toggleListen, isAlwaysOn, setIsAlwaysOn, isSupported } = useSpeechRecognition({
+  // Use radiologyTerms for grammar injection. useDictation routes between
+  // the browser Web Speech API and the local Whisper server based on the
+  // user's settings (with auto-fallback to browser if server unreachable).
+  const { isListening, interimText, error, toggleListen, isAlwaysOn, setIsAlwaysOn, isSupported, mode: dictationMode, serverLatency } = useDictation({
     onTranscriptFinalized,
     lang: supportedLanguages[language].speechCode,
     vocabulary: radiologyTerms,
@@ -810,10 +814,11 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
       <div className={`flex-shrink-0 ${densityPadding} border-b border-gray-700 flex flex-wrap items-center justify-between gap-2`}>
           <div className="flex items-center gap-2">
+            <TranscriptionModeSelector lastLatencyMs={serverLatency} compact={layoutDensity === 'compact'} />
             <button
               onClick={handleToggleListen}
-              className={`relative px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 font-semibold ${isListening ? 'bg-red-600 shadow-lg shadow-red-500/50 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
-              title={`${t('editor.pressToTalk')} (${hotkeys.toggleRecord})`}
+              className={`relative px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-all duration-300 font-semibold ${isListening ? 'bg-red-600 shadow-lg shadow-red-500/50 text-white' : dictationMode === 'server' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}
+              title={`${t('editor.pressToTalk')} (${hotkeys.toggleRecord})${dictationMode === 'server' ? ' \u2014 server mode' : ''}`}
             >
               <div className={`absolute inset-0 rounded-lg border-2 border-white/30 ${isListening ? 'animate-pulse' : 'hidden'}`}></div>
               {isListening ? <StopIcon className={micIconSize} /> : <MicrophoneIcon className={micIconSize} />}

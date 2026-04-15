@@ -84,4 +84,7 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 .text-dragged {
   color: var(--dragged-color, #fde047);
 }
+.text-server {
+  color: var(--server-color, #a78bfa);
+}
 

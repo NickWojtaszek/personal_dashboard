@@ -1,0 +1,15 @@
+{
+  "_comment": "Aspirational starter file. Grow from observed corrections.",
+  "terms": {
+    "Tumor": ["tuhmor"],
+    "Befund": ["befunt"],
+    "Kontrastmittel": ["kontrast mittel"]
+  },
+  "abbreviations": {
+    "Zentimeter": "cm",
+    "Millimeter": "mm",
+    "Computertomographie": "CT",
+    "Magnetresonanztomographie": "MRT"
+  },
+  "number_patterns": {}
+}
