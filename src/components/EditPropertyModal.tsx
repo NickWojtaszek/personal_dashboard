@@ -84,7 +84,7 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ property, onSave,
     const handleArrayChange = (arrayName: 'documents' | 'contacts', index: number, field: string, value: string) => {
         const updatedArray = [...(formData[arrayName] || [])];
         if(updatedArray[index]) {
-            (updatedArray[index] as any)[field] = value;
+            (updatedArray[index] as unknown as Record<string, unknown>)[field] = value;
             setFormData(prev => ({...prev, [arrayName]: updatedArray}));
         }
     };

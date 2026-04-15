@@ -1,33 +1,42 @@
 
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import Header from './components/Header';
 import AppsPage from './components/AppsPage';
-import EditAppModal from './components/EditAppModal';
-import ClaudeProjectsPage from './components/ClaudeProjectsPage';
-import PropertiesPage from './components/PropertiesPage';
-import PropertyDetailPage from './components/PropertyDetailPage';
-import EditPropertyModal from './components/EditPropertyModal';
-import InsurancePage from './components/InsurancePage';
-import InsuranceDetailPage from './components/InsuranceDetailPage';
-import EditInsuranceModal from './components/EditInsuranceModal';
-import NewPolicyModal from './components/NewPolicyModal';
 import GeneralPage from './components/GeneralPage';
-import InvoicesPage from './components/InvoicesPage';
-import EditInvoiceModal from './components/EditInvoiceModal';
-import NewInvoiceModal from './components/NewInvoiceModal';
-import VehiclesPage from './components/VehiclesPage';
-import VehicleDetailPage from './components/VehicleDetailPage';
-import EditVehicleModal from './components/EditVehicleModal';
-import NewRegistrationModal from './components/NewRegistrationModal';
-import ContractsPage from './components/ContractsPage';
-import ContractDetailPage from './components/ContractDetailPage';
-import RadiologyTemplatesPage from './components/RadiologyTemplatesPage';
-import DictationPage from './components/DictationPage';
+import EditAppModal from './components/EditAppModal';
 import AllowedUsersModal from './components/AllowedUsersModal';
 import { isSupabaseEnabled } from './lib/supabase';
 import { INITIAL_APPS, APP_GROUPS, INITIAL_PROJECTS, PROJECT_GROUPS, INITIAL_PROPERTIES, PROPERTY_GROUPS, INITIAL_INSURANCE_POLICIES, INSURANCE_GROUPS, INITIAL_CONTRACTS, CONTRACT_GROUPS, INITIAL_INVOICES, PURCHASE_INVOICE_CATEGORIES, INVOICE_LOCATIONS, INITIAL_VEHICLES, VEHICLE_GROUPS } from './constants';
-import CorrespondencePage from './components/CorrespondencePage';
+
+// Lazy-loaded pages and modals — these pull in heavy deps (pdfjs, @google/genai,
+// the entire radiology sub-app) that shouldn't block initial render.
+const ClaudeProjectsPage = lazy(() => import('./components/ClaudeProjectsPage'));
+const PropertiesPage = lazy(() => import('./components/PropertiesPage'));
+const PropertyDetailPage = lazy(() => import('./components/PropertyDetailPage'));
+const EditPropertyModal = lazy(() => import('./components/EditPropertyModal'));
+const InsurancePage = lazy(() => import('./components/InsurancePage'));
+const InsuranceDetailPage = lazy(() => import('./components/InsuranceDetailPage'));
+const EditInsuranceModal = lazy(() => import('./components/EditInsuranceModal'));
+const NewPolicyModal = lazy(() => import('./components/NewPolicyModal'));
+const InvoicesPage = lazy(() => import('./components/InvoicesPage'));
+const EditInvoiceModal = lazy(() => import('./components/EditInvoiceModal'));
+const NewInvoiceModal = lazy(() => import('./components/NewInvoiceModal'));
+const VehiclesPage = lazy(() => import('./components/VehiclesPage'));
+const VehicleDetailPage = lazy(() => import('./components/VehicleDetailPage'));
+const EditVehicleModal = lazy(() => import('./components/EditVehicleModal'));
+const NewRegistrationModal = lazy(() => import('./components/NewRegistrationModal'));
+const ContractsPage = lazy(() => import('./components/ContractsPage'));
+const ContractDetailPage = lazy(() => import('./components/ContractDetailPage'));
+const RadiologyTemplatesPage = lazy(() => import('./components/RadiologyTemplatesPage'));
+const DictationPage = lazy(() => import('./components/DictationPage'));
+const CorrespondencePage = lazy(() => import('./components/CorrespondencePage'));
+
+const PageLoading = () => (
+    <div className="flex items-center justify-center py-24">
+        <div className="text-sm text-slate-500 dark:text-slate-400">Loading\u2026</div>
+    </div>
+);
 import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, Page, CorrespondenceStore } from './types';
 import type { DueDateItem } from './components/general/dateUtils';
 import { loadAllItems, saveAllItems } from './lib/storage';
@@ -960,7 +969,9 @@ const App: React.FC = () => {
                 onManageUsers={isSupabaseEnabled() ? () => setShowUsersModal(true) : undefined}
             />
             <main className={`container mx-auto ${isFullHeight ? 'flex-grow min-h-0 px-0 py-0' : 'px-4 sm:px-6 lg:px-8 py-8'}`}>
-                {renderPage()}
+                <Suspense fallback={<PageLoading />}>
+                    {renderPage()}
+                </Suspense>
             </main>
             {editingApp && (
                 <EditAppModal

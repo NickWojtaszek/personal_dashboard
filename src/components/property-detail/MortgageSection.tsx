@@ -81,7 +81,7 @@ const MortgageSection: React.FC<MortgageSectionProps> = ({ property, isEditing, 
     const handleLoanChange = (loanId: string, field: string, value: any) => {
         updateMortgage(m => {
             const loan = m.loans?.find((l: MortgageLoan) => l.id === loanId);
-            if (loan) (loan as any)[field] = value;
+            if (loan) (loan as unknown as Record<string, unknown>)[field] = value;
         });
     };
 
@@ -124,7 +124,7 @@ const MortgageSection: React.FC<MortgageSectionProps> = ({ property, isEditing, 
             const loan = m.loans?.find((l: MortgageLoan) => l.id === loanId);
             if (!loan) return;
             const payment = loan.payments?.find((p: MortgagePayment) => p.id === paymentId);
-            if (payment) (payment as any)[field] = value;
+            if (payment) (payment as unknown as Record<string, unknown>)[field] = value;
         });
     };
 
@@ -154,7 +154,7 @@ const MortgageSection: React.FC<MortgageSectionProps> = ({ property, isEditing, 
             const loan = m.loans?.find((l: MortgageLoan) => l.id === loanId);
             if (!loan) return;
             const period = loan.ratePeriods?.find((p: MortgageRatePeriod) => p.id === periodId);
-            if (period) (period as any)[field] = value;
+            if (period) (period as unknown as Record<string, unknown>)[field] = value;
         });
     };
 

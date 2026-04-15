@@ -47,7 +47,7 @@ const VehicleDetailPage: React.FC<VehicleDetailPageProps> = ({ vehicle, onBack, 
         const updatedVehicle = { ...vehicle };
         for (const [key, value] of Object.entries(regoData)) {
             if (value !== null && value !== undefined) {
-                (updatedVehicle as any)[key] = value;
+                (updatedVehicle as unknown as Record<string, unknown>)[key] = value;
             }
         }
 

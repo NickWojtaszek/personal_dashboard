@@ -46,7 +46,7 @@ const DocumentsContactsSection: React.FC<DocumentsContactsSectionProps> = ({ pro
     const handleArrayChange = (arrayName: 'documents' | 'contacts', index: number, field: string, value: string) => {
         const updatedArray = [...(editedData[arrayName] || [])];
         if(updatedArray[index]) {
-            (updatedArray[index] as any)[field] = value;
+            (updatedArray[index] as unknown as Record<string, unknown>)[field] = value;
             setEditedData(prev => ({...prev, [arrayName]: updatedArray}));
         }
     };
