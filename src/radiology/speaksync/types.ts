@@ -157,6 +157,7 @@ export type DictationMode = 'browser' | 'server';
 export interface DictationSettings {
   mode: DictationMode;
   serverUrl: string;
+  useVad?: boolean;
 }
 
 export interface HotkeysConfig {

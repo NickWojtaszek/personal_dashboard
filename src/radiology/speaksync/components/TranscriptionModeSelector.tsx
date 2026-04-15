@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSettings } from '../context/SettingsContext';
-import { health } from '../services/transcriptionService';
+import { health, listModels, setModel } from '../services/transcriptionService';
 
 interface Props {
     lastLatencyMs?: number | null;
@@ -19,6 +19,10 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
     const [serverReachable, setServerReachable] = useState<boolean | null>(null);
     const [showConfig, setShowConfig] = useState(false);
     const [urlDraft, setUrlDraft] = useState(dictation.serverUrl);
+    const [models, setModels] = useState<string[]>([]);
+    const [currentModel, setCurrentModel] = useState<string>('');
+    const [switchingModel, setSwitchingModel] = useState(false);
+    const [modelError, setModelError] = useState<string | null>(null);
 
     // Probe the server periodically so the toggle reflects reality
     useEffect(() => {
@@ -45,7 +49,38 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
         if (trimmed && trimmed !== dictation.serverUrl) {
             setDictation({ ...dictation, serverUrl: trimmed });
         }
-        setShowConfig(false);
+    };
+
+    // Fetch models list when the popover opens
+    useEffect(() => {
+        if (!showConfig) return;
+        let cancelled = false;
+        (async () => {
+            const info = await listModels(dictation.serverUrl);
+            if (!cancelled && info) {
+                setModels(info.available);
+                setCurrentModel(info.current);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [showConfig, dictation.serverUrl]);
+
+    const switchModel = async (model: string) => {
+        if (model === currentModel) return;
+        setSwitchingModel(true);
+        setModelError(null);
+        try {
+            const info = await setModel(dictation.serverUrl, model);
+            setCurrentModel(info.current);
+        } catch (err) {
+            setModelError(err instanceof Error ? err.message : 'Failed to switch model');
+        } finally {
+            setSwitchingModel(false);
+        }
+    };
+
+    const toggleVad = () => {
+        setDictation({ ...dictation, useVad: !(dictation.useVad ?? true) });
     };
 
     const serverDisabled = serverReachable === false;
@@ -104,25 +139,83 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
                 </svg>
             </button>
             {showConfig && (
-                <div className="absolute z-50 mt-32 p-3 bg-gray-800 border border-gray-600 rounded-lg shadow-xl">
-                    <label className="block text-xs text-gray-300 mb-1">Whisper server URL</label>
-                    <input
-                        type="text"
-                        value={urlDraft}
-                        onChange={e => setUrlDraft(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') saveUrl(); if (e.key === 'Escape') setShowConfig(false); }}
-                        placeholder="http://localhost:8000"
-                        className="w-72 px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
-                    />
-                    <div className="flex justify-end gap-2 mt-2">
+                <div className="absolute z-50 mt-32 right-0 p-4 bg-gray-800 border border-gray-600 rounded-lg shadow-xl w-96 space-y-4">
+                    {/* Server URL */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">Whisper server URL</label>
+                        <div className="flex gap-1.5">
+                            <input
+                                type="text"
+                                value={urlDraft}
+                                onChange={e => setUrlDraft(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') saveUrl(); if (e.key === 'Escape') setShowConfig(false); }}
+                                placeholder="http://localhost:8000"
+                                className="flex-1 px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+                            />
+                            <button
+                                onClick={saveUrl}
+                                disabled={urlDraft.trim() === dictation.serverUrl}
+                                className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded"
+                            >Save URL</button>
+                        </div>
+                    </div>
+
+                    {/* VAD toggle */}
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <div className="text-xs font-semibold text-gray-300">Cut segments on silence (VAD)</div>
+                            <div className="text-[10px] text-gray-500 mt-0.5">Recommended. Rotates segments at natural pauses instead of every 6 seconds.</div>
+                        </div>
+                        <button
+                            onClick={toggleVad}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${dictation.useVad ?? true ? 'bg-blue-600' : 'bg-gray-600'}`}
+                        >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition ${dictation.useVad ?? true ? 'translate-x-5' : 'translate-x-1'}`} />
+                        </button>
+                    </div>
+
+                    {/* Model picker */}
+                    <div>
+                        <div className="flex items-center justify-between mb-1">
+                            <div className="text-xs font-semibold text-gray-300">Whisper model</div>
+                            {currentModel && <span className="text-[10px] text-gray-500">current: <span className="text-gray-300 font-mono">{currentModel}</span></span>}
+                        </div>
+                        <div className="text-[10px] text-gray-500 mb-1.5">
+                            Larger models are more accurate, slower, and use more RAM. Switching reloads the model (may take 30\u201360s).
+                        </div>
+                        {models.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-1">
+                                {['tiny', 'base', 'small', 'medium', 'large-v3', 'large-v3-turbo'].filter(m => models.includes(m)).map(m => (
+                                    <button
+                                        key={m}
+                                        onClick={() => switchModel(m)}
+                                        disabled={switchingModel || m === currentModel}
+                                        className={`px-2 py-1 text-xs rounded transition-colors ${m === currentModel ? 'bg-purple-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'} ${switchingModel ? 'opacity-50 cursor-wait' : ''}`}
+                                    >{m}</button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-[11px] text-gray-500 italic">Server unreachable &mdash; connect first to fetch model list.</div>
+                        )}
+                        {switchingModel && (
+                            <div className="text-[10px] text-purple-300 mt-1.5 flex items-center gap-1.5">
+                                <svg className="animate-spin w-3 h-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z"></path>
+                                </svg>
+                                Loading model\u2026 (first time downloads the weights)
+                            </div>
+                        )}
+                        {modelError && (
+                            <div className="text-[10px] text-red-400 mt-1.5">{modelError}</div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end pt-1 border-t border-gray-700">
                         <button
                             onClick={() => setShowConfig(false)}
-                            className="px-2 py-1 text-xs text-gray-300 hover:text-white"
-                        >Cancel</button>
-                        <button
-                            onClick={saveUrl}
-                            className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded"
-                        >Save</button>
+                            className="px-2 py-1 text-xs text-gray-400 hover:text-white"
+                        >Close</button>
                     </div>
                 </div>
             )}

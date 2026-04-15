@@ -52,21 +52,30 @@ class WhisperEngine:
         self.model_name = settings.whisper_model
         self.device = settings.whisper_device
 
-    def load(self) -> None:
+    def load(self, model_name: Optional[str] = None) -> None:
         # Imported lazily so `python -c "import config"` works without faster-whisper
         from faster_whisper import WhisperModel
 
+        name = model_name or settings.whisper_model
         log.info(
-            "Loading Whisper model=%s device=%s compute=%s (first load downloads ~140MB+)",
-            settings.whisper_model, settings.whisper_device, settings.whisper_compute_type,
+            "Loading Whisper model=%s device=%s compute=%s (first load of a new model downloads ~140MB+)",
+            name, settings.whisper_device, settings.whisper_compute_type,
         )
         t0 = time.perf_counter()
         self.model = WhisperModel(
-            settings.whisper_model,
+            name,
             device=settings.whisper_device,
             compute_type=settings.whisper_compute_type,
         )
+        self.model_name = name
         log.info("Model loaded in %.1fs", time.perf_counter() - t0)
+
+    async def reload(self, model_name: str) -> None:
+        """Swap to a different model. Queues behind any in-flight transcription."""
+        async with self.lock:
+            # Drop references to the old model so ctranslate2 releases its memory
+            self.model = None
+            await asyncio.to_thread(self.load, model_name)
 
     async def transcribe(self, audio_path: str, language: str) -> Tuple[str, float, str, float]:
         """Returns (text, avg_confidence, language_detected, duration_sec)."""
@@ -236,6 +245,45 @@ class TranscribeResponse(BaseModel):
     language_detected: str
     duration_sec: float
     processing_ms: int
+
+
+AVAILABLE_MODELS: List[str] = [
+    "tiny", "tiny.en",
+    "base", "base.en",
+    "small", "small.en",
+    "medium", "medium.en",
+    "large-v2", "large-v3",
+    "large-v3-turbo",
+    "distil-large-v3",
+]
+
+
+class ModelsResponse(BaseModel):
+    available: List[str]
+    current: str
+
+
+class ReloadRequest(BaseModel):
+    model: str
+
+
+@app.get("/models", response_model=ModelsResponse)
+async def list_models() -> ModelsResponse:
+    return ModelsResponse(available=AVAILABLE_MODELS, current=engine.model_name)
+
+
+@app.post("/model", response_model=ModelsResponse)
+async def set_model(req: ReloadRequest) -> ModelsResponse:
+    if req.model not in AVAILABLE_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown model '{req.model}'. Available: {', '.join(AVAILABLE_MODELS)}")
+    if req.model == engine.model_name:
+        return ModelsResponse(available=AVAILABLE_MODELS, current=engine.model_name)
+    try:
+        await engine.reload(req.model)
+    except Exception as e:
+        log.exception("Model reload failed")
+        raise HTTPException(status_code=500, detail=f"Model reload failed: {e}")
+    return ModelsResponse(available=AVAILABLE_MODELS, current=engine.model_name)
 
 
 @app.get("/health", response_model=HealthResponse)

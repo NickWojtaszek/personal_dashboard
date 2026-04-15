@@ -20,6 +20,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { health, transcribe } from '../services/transcriptionService';
 import type { TranscribeResponse } from '../services/transcriptionService';
+import { createSilenceDetector, type SilenceDetector } from './silenceDetector';
 
 interface UseServerTranscriptionProps {
     onTranscriptFinalized: (transcript: string, source?: 'voice' | 'server') => void;
@@ -27,13 +28,16 @@ interface UseServerTranscriptionProps {
     serverUrl: string;
     enabled: boolean;
     correct?: boolean;
-    /** Segment length in ms. ~6s is a reasonable balance of latency vs. Whisper accuracy. */
-    segmentMs?: number;
+    /** Cut segments on silence via VAD instead of a fixed timer. Recommended. */
+    useVad?: boolean;
+    /** Hard upper bound on segment length (ms). Used as a safety whether VAD is on or off. */
+    maxSegmentMs?: number;
     onTranscribed?: (response: TranscribeResponse) => void;
 }
 
 const HEALTH_POLL_MS = 30_000;
-const DEFAULT_SEGMENT_MS = 6000;
+const DEFAULT_MAX_SEGMENT_MS = 15000;
+const FIXED_TIMER_SEGMENT_MS = 6000;
 
 function pickMimeType(): string {
     const candidates = [
@@ -60,7 +64,8 @@ export const useServerTranscription = ({
     serverUrl,
     enabled,
     correct = true,
-    segmentMs = DEFAULT_SEGMENT_MS,
+    useVad = true,
+    maxSegmentMs = DEFAULT_MAX_SEGMENT_MS,
     onTranscribed,
 }: UseServerTranscriptionProps) => {
     const [isListening, setIsListening] = useState(false);
@@ -74,10 +79,29 @@ export const useServerTranscription = ({
     const streamRef = useRef<MediaStream | null>(null);
     const recorderRef = useRef<MediaRecorder | null>(null);
     const rotateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const vadRef = useRef<SilenceDetector | null>(null);
     const isListeningRef = useRef(false); // synchronous access for onstop callback
     const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
     const inFlightCountRef = useRef(0);
     const isSupported = typeof MediaRecorder !== 'undefined' && typeof navigator?.mediaDevices?.getUserMedia === 'function';
+
+    const requestRotate = useCallback(() => {
+        if (isListeningRef.current && recorderRef.current?.state === 'recording') {
+            try { recorderRef.current.stop(); } catch { /* ignore */ }
+        }
+    }, []);
+
+    const clearRotateTimer = useCallback(() => {
+        if (rotateTimeoutRef.current) {
+            clearTimeout(rotateTimeoutRef.current);
+            rotateTimeoutRef.current = null;
+        }
+    }, []);
+
+    const scheduleFixedRotate = useCallback((ms: number) => {
+        clearRotateTimer();
+        rotateTimeoutRef.current = setTimeout(requestRotate, ms);
+    }, [clearRotateTimer, requestRotate]);
 
     // Health polling — only when enabled. Re-checks on visibility change too.
     useEffect(() => {
@@ -166,18 +190,22 @@ export const useServerTranscription = ({
             enqueueSegment(blob);
 
             if (isListeningRef.current) {
-                // Start the next segment immediately
+                // Reset segment timing for the next cycle
+                vadRef.current?.reset();
+                // Start the next recorder immediately
                 startRecorder();
-                // Schedule the next rotate
-                rotateTimeoutRef.current = setTimeout(() => {
-                    if (isListeningRef.current && recorderRef.current?.state === 'recording') {
-                        try { recorderRef.current.stop(); } catch { /* ignore */ }
-                    }
-                }, segmentMs);
+                // If VAD is not available, fall back to fixed-timer rotation
+                if (!vadRef.current) {
+                    scheduleFixedRotate(FIXED_TIMER_SEGMENT_MS);
+                }
             } else {
                 // User stopped — release the stream now that final blob is queued
                 releaseStream();
                 recorderRef.current = null;
+                if (vadRef.current) {
+                    vadRef.current.stop();
+                    vadRef.current = null;
+                }
             }
         };
 
@@ -187,7 +215,7 @@ export const useServerTranscription = ({
         };
 
         recorder.start();
-    }, [enqueueSegment, segmentMs, releaseStream]);
+    }, [enqueueSegment, releaseStream, scheduleFixedRotate]);
 
     const start = useCallback(async () => {
         if (!enabled) return;
@@ -206,14 +234,28 @@ export const useServerTranscription = ({
             isListeningRef.current = true;
             setIsListening(true);
 
+            // Set up the rotation strategy BEFORE starting the recorder.
+            if (useVad) {
+                try {
+                    vadRef.current = createSilenceDetector(stream, () => {
+                        requestRotate();
+                    }, {
+                        silenceMs: 800,
+                        minSegmentMs: 2500,
+                        maxSegmentMs,
+                    });
+                } catch (err) {
+                    console.warn('[serverTranscription] VAD init failed, falling back to fixed timer:', err);
+                    vadRef.current = null;
+                }
+            }
+
             startRecorder();
 
-            // First rotation after segmentMs
-            rotateTimeoutRef.current = setTimeout(() => {
-                if (isListeningRef.current && recorderRef.current?.state === 'recording') {
-                    try { recorderRef.current.stop(); } catch { /* ignore */ }
-                }
-            }, segmentMs);
+            // If VAD isn't available or disabled, use a fixed timer as fallback.
+            if (!vadRef.current) {
+                scheduleFixedRotate(FIXED_TIMER_SEGMENT_MS);
+            }
         } catch (err) {
             const name = (err as DOMException)?.name;
             if (name === 'NotAllowedError' || name === 'SecurityError') {
@@ -226,31 +268,37 @@ export const useServerTranscription = ({
             isListeningRef.current = false;
             setIsListening(false);
         }
-    }, [enabled, isSupported, releaseStream, startRecorder, segmentMs]);
+    }, [enabled, isSupported, releaseStream, startRecorder, useVad, maxSegmentMs, requestRotate, scheduleFixedRotate]);
 
     const stop = useCallback(() => {
         isListeningRef.current = false;
         setIsListening(false);
 
-        if (rotateTimeoutRef.current) {
-            clearTimeout(rotateTimeoutRef.current);
-            rotateTimeoutRef.current = null;
-        }
+        clearRotateTimer();
 
         const recorder = recorderRef.current;
         if (recorder && recorder.state !== 'inactive') {
             try {
                 recorder.stop();
-                // onstop will enqueue the final blob and release the stream
+                // onstop will enqueue the final blob, release the stream,
+                // and tear down the VAD.
             } catch (err) {
                 console.warn('[serverTranscription] stop failed:', err);
                 releaseStream();
+                if (vadRef.current) {
+                    vadRef.current.stop();
+                    vadRef.current = null;
+                }
             }
         } else {
             releaseStream();
             recorderRef.current = null;
+            if (vadRef.current) {
+                vadRef.current.stop();
+                vadRef.current = null;
+            }
         }
-    }, [releaseStream]);
+    }, [clearRotateTimer, releaseStream]);
 
     const toggleListen = useCallback(() => {
         if (isListeningRef.current) stop();

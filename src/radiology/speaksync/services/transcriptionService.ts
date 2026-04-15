@@ -35,6 +35,38 @@ function trimTrailingSlash(url: string): string {
     return url.replace(/\/+$/, '');
 }
 
+export interface ModelsInfo {
+    available: string[];
+    current: string;
+}
+
+/** List available Whisper models and which is currently loaded. */
+export async function listModels(serverUrl: string): Promise<ModelsInfo | null> {
+    if (!serverUrl) return null;
+    try {
+        const res = await fetch(`${trimTrailingSlash(serverUrl)}/models`);
+        if (!res.ok) return null;
+        return (await res.json()) as ModelsInfo;
+    } catch {
+        return null;
+    }
+}
+
+/** Switch the server to a different Whisper model. Blocks until loaded. */
+export async function setModel(serverUrl: string, model: string): Promise<ModelsInfo> {
+    const res = await fetch(`${trimTrailingSlash(serverUrl)}/model`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model }),
+    });
+    if (!res.ok) {
+        let detail = '';
+        try { const j = await res.json(); detail = j?.detail || ''; } catch { /* ignore */ }
+        throw new Error(`Model switch failed: ${res.status}${detail ? ` ${detail}` : ''}`);
+    }
+    return (await res.json()) as ModelsInfo;
+}
+
 /** Probe the server. Returns null on any failure (network, timeout, non-2xx). */
 export async function health(serverUrl: string): Promise<ServerHealth | null> {
     if (!serverUrl) return null;

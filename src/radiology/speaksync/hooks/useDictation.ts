@@ -36,6 +36,7 @@ export const useDictation = (props: UseDictationProps) => {
         serverUrl: dictation.serverUrl,
         enabled: dictation.mode === 'server',
         correct: true,
+        useVad: dictation.useVad ?? true,
     });
 
     const useServer = dictation.mode === 'server' && server.isConnected;
