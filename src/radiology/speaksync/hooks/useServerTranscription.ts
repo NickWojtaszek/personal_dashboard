@@ -58,6 +58,8 @@ export const useServerTranscription = ({
     const [isConnected, setIsConnected] = useState(false);
     const [serverLatency, setServerLatency] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [permissionDenied, setPermissionDenied] = useState(false);
+    const [lastResponse, setLastResponse] = useState<TranscribeResponse | null>(null);
 
     const recorderRef = useRef<MediaRecorder | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
@@ -110,6 +112,7 @@ export const useServerTranscription = ({
         try {
             const result = await transcribe(serverUrl, blob, lang || 'en', correct);
             setServerLatency(result.processing_ms);
+            setLastResponse(result);
             const text = result.corrected_text || result.raw_text;
             if (text && text.trim()) {
                 onTranscriptFinalized(text, 'server');
@@ -133,6 +136,7 @@ export const useServerTranscription = ({
         if (isListening) return;
 
         setError(null);
+        setPermissionDenied(false);
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             streamRef.current = stream;
@@ -169,7 +173,8 @@ export const useServerTranscription = ({
         } catch (err) {
             const name = (err as DOMException)?.name;
             if (name === 'NotAllowedError' || name === 'SecurityError') {
-                setError('Microphone permission denied');
+                setError('Microphone permission denied. Click the camera/lock icon in the address bar, allow microphone, then try again.');
+                setPermissionDenied(true);
             } else {
                 setError(err instanceof Error ? err.message : 'Failed to start recording');
             }
@@ -177,6 +182,11 @@ export const useServerTranscription = ({
             setIsListening(false);
         }
     }, [enabled, isSupported, isListening, releaseStream, sendBlob]);
+
+    const clearError = useCallback(() => {
+        setError(null);
+        setPermissionDenied(false);
+    }, []);
 
     const stop = useCallback(() => {
         if (!recorderRef.current || recorderRef.current.state === 'inactive') {
@@ -222,5 +232,8 @@ export const useServerTranscription = ({
         isConnected,
         isProcessing,
         serverLatency,
+        permissionDenied,
+        lastResponse,
+        clearError,
     };
 };

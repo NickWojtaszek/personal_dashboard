@@ -15,6 +15,7 @@ import { useTemplate } from '../context/TemplateContext';
 import { extractAndValidateStudyCode } from '../utils/studyCodeExtractor';
 import { useDictation } from '../hooks/useDictation';
 import TranscriptionModeSelector from './TranscriptionModeSelector';
+import CorrectionsBadge from './CorrectionsBadge';
 import { enhanceReport, correctSelection as correctSelectionWithAI, checkGrammar } from '../services/aiService';
 import GrammarTooltip from './GrammarTooltip';
 import { useTheme } from '../context/ThemeContext';
@@ -274,7 +275,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   // Use radiologyTerms for grammar injection. useDictation routes between
   // the browser Web Speech API and the local Whisper server based on the
   // user's settings (with auto-fallback to browser if server unreachable).
-  const { isListening, interimText, error, toggleListen, isAlwaysOn, setIsAlwaysOn, isSupported, mode: dictationMode, serverLatency, isProcessing: serverProcessing } = useDictation({
+  const { isListening, interimText, error, toggleListen, isAlwaysOn, setIsAlwaysOn, isSupported, mode: dictationMode, serverLatency, isProcessing: serverProcessing, permissionDenied, lastResponse: lastServerResponse, clearError } = useDictation({
     onTranscriptFinalized,
     lang: supportedLanguages[language].speechCode,
     vocabulary: radiologyTerms,
@@ -815,6 +816,9 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       <div className={`flex-shrink-0 ${densityPadding} border-b border-gray-700 flex flex-wrap items-center justify-between gap-2`}>
           <div className="flex items-center gap-2">
             <TranscriptionModeSelector lastLatencyMs={serverLatency} compact={layoutDensity === 'compact'} />
+            {dictationMode === 'server' && lastServerResponse && (
+                <CorrectionsBadge response={lastServerResponse} compact={layoutDensity === 'compact'} />
+            )}
             <button
               onClick={handleToggleListen}
               disabled={serverProcessing}
@@ -924,13 +928,29 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
               </button>
           </div>
       </div>
-      <div className="h-5 text-center text-xs text-gray-400 pt-1 flex items-center justify-center gap-2">
+      <div className={`text-center text-xs text-gray-400 pt-1 flex items-center justify-center gap-2 ${error && permissionDenied ? 'h-auto py-2' : 'h-5'}`}>
           {error ? (
-              <span className="text-red-400 flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+              <span className="text-red-400 flex items-start gap-1.5 max-w-2xl text-left">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 flex-shrink-0 mt-0.5">
                       <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm-1-9a.75.75 0 0 0-.75.75v4.5a.75.75 0 0 0 1.5 0v-4.5A.75.75 0 0 0 10 5Z" clipRule="evenodd" />
                   </svg>
-                  {dictationMode === 'server' ? `Server: ${error}` : error}
+                  <span className="flex-1">
+                      {dictationMode === 'server' ? `Server: ${error}` : error}
+                  </span>
+                  {permissionDenied && (
+                      <button
+                          onClick={() => { clearError(); handleToggleListen(); }}
+                          className="flex-shrink-0 px-2 py-0.5 text-[11px] bg-red-600/20 hover:bg-red-600/30 text-red-200 border border-red-500/40 rounded font-medium transition-colors"
+                      >Try again</button>
+                  )}
+                  {error && !permissionDenied && (
+                      <button
+                          onClick={clearError}
+                          className="flex-shrink-0 text-red-300 hover:text-red-100 text-base leading-none"
+                          aria-label="Dismiss error"
+                          title="Dismiss"
+                      >\u00d7</button>
+                  )}
               </span>
           ) : serverProcessing ? (
               <span className="text-purple-300 flex items-center gap-1.5">

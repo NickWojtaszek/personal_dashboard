@@ -55,5 +55,8 @@ export const useDictation = (props: UseDictationProps) => {
         isConnected: false,
         isProcessing: false,
         serverLatency: null,
+        permissionDenied: false,
+        lastResponse: null,
+        clearError: () => { /* browser hook clears its own error on next start */ },
     };
 };
