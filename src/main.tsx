@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { AuthProvider } from './lib/auth';
 import AuthGate from './AuthGate';
+import ErrorBoundary from './components/ErrorBoundary';
 import { handleGmailRedirectResult } from './lib/gmail';
 import './index.css';
 
@@ -16,8 +17,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <AuthProvider>
-      <AuthGate />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
