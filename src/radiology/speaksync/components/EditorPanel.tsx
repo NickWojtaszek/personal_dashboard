@@ -14,8 +14,10 @@ import { useStudy } from '../context/StudyContext';
 import { useTemplate } from '../context/TemplateContext';
 import { extractAndValidateStudyCode } from '../utils/studyCodeExtractor';
 import { useDictation } from '../hooks/useDictation';
+import { useTrainingCapture } from '../hooks/useTrainingCapture';
 import TranscriptionModeSelector from './TranscriptionModeSelector';
 import CorrectionsBadge from './CorrectionsBadge';
+import TrainingCaptureBadge from './TrainingCaptureBadge';
 import { enhanceReport, correctSelection as correctSelectionWithAI, checkGrammar } from '../services/aiService';
 import GrammarTooltip from './GrammarTooltip';
 import { useTheme } from '../context/ThemeContext';
@@ -93,7 +95,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 }) => {
   const { t, language, supportedLanguages } = useTranslations();
   const { currentTheme } = useTheme();
-  const { customCommands, addOrUpdateCustomCommand, aiPromptConfig, layoutDensity, hotkeys, styleExamples, addStyleExample, isStyleTrainingLimitReached } = useSettings();
+  const { customCommands, addOrUpdateCustomCommand, aiPromptConfig, layoutDensity, hotkeys, styleExamples, addStyleExample, isStyleTrainingLimitReached, dictation } = useSettings();
+  const [trainingTick, setTrainingTick] = useState(0);
   const { studies, addStudy, radiologyCodes } = useStudy();
   const { currentStudyFilter } = useTemplate();
 
@@ -225,6 +228,17 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       }
   };
 
+  // Parallel audio capture for Whisper fine-tuning (browser mode only).
+  // The hook saves (audio + raw transcript) pairs to IndexedDB locally;
+  // we pass the returned pair_id into the span's data attribute so the
+  // classifier can diff the user's edits later.
+  const trainingEnabled = dictation.mode === 'browser' && !!dictation.captureTraining;
+  const training = useTrainingCapture({
+    enabled: trainingEnabled,
+    language: supportedLanguages[language].speechCode,
+    onStatsChanged: () => setTrainingTick(n => n + 1),
+  });
+
   const onTranscriptFinalized = useCallback((transcript: string, source: 'voice' | 'server' = 'voice') => {
     const punctuationCommands = supportedLanguages[language].punctuationCommands;
     const allCommands = [...punctuationCommands, ...customCommands];
@@ -262,7 +276,14 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
     if (processed) {
         const cssClass = source === 'server' ? 'text-server' : 'text-voice';
-        const htmlToInsert = `<span class="${cssClass}">${processed}</span>`;
+        // Browser-mode: capture a training pair and embed its id in the span
+        // so we can later classify how much the user edited this utterance.
+        let pairIdAttr = '';
+        if (source === 'voice' && training.isCapturing) {
+            const pairId = training.finalize(transcript);
+            if (pairId) pairIdAttr = ` data-pair-id="${pairId}"`;
+        }
+        const htmlToInsert = `<span class="${cssClass}"${pairIdAttr}>${processed}</span>`;
         if (editorRef.current) {
             editorRef.current.focus();
             insertHtmlAtCursor(htmlToInsert);
@@ -270,7 +291,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             editorRef.current.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
         }
     }
-  }, [language, customCommands, supportedLanguages]);
+  }, [language, customCommands, supportedLanguages, training]);
 
   // Use radiologyTerms for grammar injection. useDictation routes between
   // the browser Web Speech API and the local Whisper server based on the
@@ -289,8 +310,19 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     }
     // Play feedback sound based on target state (if currently listening, we are stopping)
     playFeedbackSound(isListening ? 'stop' : 'start');
+
+    // Start or stop the parallel training recorder in lockstep with dictation.
+    // Only relevant in browser mode; server mode already has its own recorder.
+    if (trainingEnabled) {
+        if (isListening) {
+            training.stop();
+        } else {
+            training.start();
+        }
+    }
+
     toggleListen();
-  }, [isSupported, toggleListen, isListening, t]);
+  }, [isSupported, toggleListen, isListening, t, trainingEnabled, training]);
   
   const applySimpleCorrectionsToText = (text: string, context: { isFirstContent: boolean, followsSentenceEnd: boolean }): string => {
     let processed = text.trim();
@@ -818,6 +850,16 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             <TranscriptionModeSelector lastLatencyMs={serverLatency} compact={layoutDensity === 'compact'} />
             {dictationMode === 'server' && lastServerResponse && (
                 <CorrectionsBadge response={lastServerResponse} compact={layoutDensity === 'compact'} />
+            )}
+            {dictationMode === 'browser' && trainingEnabled && (
+                <TrainingCaptureBadge
+                    enabled={trainingEnabled}
+                    compact={layoutDensity === 'compact'}
+                    changeTick={trainingTick}
+                    onReclassify={async () => {
+                        if (editorRef.current) await training.classifyAll(editorRef.current);
+                    }}
+                />
             )}
             <button
               onClick={handleToggleListen}

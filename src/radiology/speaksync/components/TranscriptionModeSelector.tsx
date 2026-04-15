@@ -83,6 +83,10 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
         setDictation({ ...dictation, useVad: !(dictation.useVad ?? true) });
     };
 
+    const toggleTraining = () => {
+        setDictation({ ...dictation, captureTraining: !dictation.captureTraining });
+    };
+
     const serverDisabled = serverReachable === false;
     const serverTitle = serverReachable === false
         ? `Server unreachable at ${dictation.serverUrl} \u2014 click \u2699 to change URL`
@@ -171,6 +175,20 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
                             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${dictation.useVad ?? true ? 'bg-blue-600' : 'bg-gray-600'}`}
                         >
                             <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition ${dictation.useVad ?? true ? 'translate-x-5' : 'translate-x-1'}`} />
+                        </button>
+                    </div>
+
+                    {/* Training data capture toggle */}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-700">
+                        <div>
+                            <div className="text-xs font-semibold text-gray-300">Collect training data (browser mode)</div>
+                            <div className="text-[10px] text-gray-500 mt-0.5">Save (audio + transcript + edits) locally for later Whisper fine-tuning. Nothing leaves your machine.</div>
+                        </div>
+                        <button
+                            onClick={toggleTraining}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 ${dictation.captureTraining ? 'bg-emerald-600' : 'bg-gray-600'}`}
+                        >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition ${dictation.captureTraining ? 'translate-x-5' : 'translate-x-1'}`} />
                         </button>
                     </div>
 

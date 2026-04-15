@@ -158,6 +158,8 @@ export interface DictationSettings {
   mode: DictationMode;
   serverUrl: string;
   useVad?: boolean;
+  /** Capture (audio + transcript + edits) pairs for later Whisper fine-tuning. Local-only. */
+  captureTraining?: boolean;
 }
 
 export interface HotkeysConfig {
