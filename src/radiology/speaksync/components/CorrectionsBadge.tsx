@@ -55,7 +55,7 @@ const CorrectionsBadge: React.FC<Props> = ({ response, compact = false }) => {
                 title={count > 0 ? `${count} dictionary correction(s) — click for details` : 'No corrections applied — click to view raw text'}
             >
                 <span className={`inline-block w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden />
-                <span className="font-mono">{count > 0 ? `\u2713 ${count}` : '\u2713 0'}</span>
+                <span className="font-mono">{count > 0 ? `✓ ${count}` : '✓ 0'}</span>
             </button>
             {open && (
                 <div
@@ -69,7 +69,7 @@ const CorrectionsBadge: React.FC<Props> = ({ response, compact = false }) => {
                                 onClick={() => setOpen(false)}
                                 className="text-gray-400 hover:text-white text-base leading-none px-1"
                                 aria-label="Close"
-                            >\u00d7</button>
+                            >×</button>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-[10px] text-gray-400">
                             <div>Confidence: <span className="text-gray-200">{(response.confidence * 100).toFixed(0)}%</span></div>
@@ -99,7 +99,7 @@ const CorrectionsBadge: React.FC<Props> = ({ response, compact = false }) => {
                                 {response.corrections_applied.map((c, i) => (
                                     <div key={i} className="flex items-center gap-2 font-mono">
                                         <span className="text-amber-300/80 line-through">{c.from}</span>
-                                        <span className="text-gray-500">\u2192</span>
+                                        <span className="text-gray-500">→</span>
                                         <span className="text-emerald-300">{c.to}</span>
                                         <span className="ml-auto text-[10px] text-gray-500">{c.type}</span>
                                     </div>

@@ -89,10 +89,10 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
 
     const serverDisabled = serverReachable === false;
     const serverTitle = serverReachable === false
-        ? `Server unreachable at ${dictation.serverUrl} \u2014 click \u2699 to change URL`
+        ? `Server unreachable at ${dictation.serverUrl} — click ⚙ to change URL`
         : serverReachable === null
-            ? 'Checking server\u2026'
-            : `Whisper server at ${dictation.serverUrl}${lastLatencyMs ? ` \u00b7 last: ${lastLatencyMs}ms` : ''}`;
+            ? 'Checking server…'
+            : `Whisper server at ${dictation.serverUrl}${lastLatencyMs ? ` · last: ${lastLatencyMs}ms` : ''}`;
 
     const baseBtn = compact
         ? 'px-2 py-1 text-xs rounded transition-colors'
@@ -221,7 +221,7 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z"></path>
                                 </svg>
-                                Loading model\u2026 (first time downloads the weights)
+                                Loading model… (first time downloads the weights)
                             </div>
                         )}
                         {modelError && (

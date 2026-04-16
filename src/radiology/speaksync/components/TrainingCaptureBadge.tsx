@@ -190,7 +190,7 @@ const TrainingCaptureBadge: React.FC<Props> = ({ enabled, onReclassify, changeTi
                     <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
                 </svg>
                 <span className="font-mono">
-                    {total > 0 ? `${total} \u00b7 ${formatDuration(hours * 3600)}` : 'rec'}
+                    {total > 0 ? `${total} · ${formatDuration(hours * 3600)}` : 'rec'}
                 </span>
             </button>
             {open && (
@@ -200,12 +200,12 @@ const TrainingCaptureBadge: React.FC<Props> = ({ enabled, onReclassify, changeTi
                 >
                     <div className="p-3 border-b border-gray-700 flex items-center justify-between">
                         <span className="font-semibold text-gray-100">Whisper training data</span>
-                        <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-white text-base leading-none px-1" aria-label="Close">\u00d7</button>
+                        <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-white text-base leading-none px-1" aria-label="Close">×</button>
                     </div>
 
                     <div className="p-3 space-y-2">
                         {loading ? (
-                            <div className="text-gray-400 italic">Classifying pairs against editor\u2026</div>
+                            <div className="text-gray-400 italic">Classifying pairs against editor…</div>
                         ) : !stats || stats.total === 0 ? (
                             <div className="text-gray-400">
                                 <p>No pairs captured yet.</p>
@@ -223,22 +223,22 @@ const TrainingCaptureBadge: React.FC<Props> = ({ enabled, onReclassify, changeTi
                                     <div>Total: <span className="text-gray-200">{stats.total}</span></div>
                                     <div>Audio: <span className="text-gray-200">{formatDuration(stats.totalDurationSec)}</span></div>
                                     <div>Storage: <span className="text-gray-200">{formatBytes(stats.totalAudioBytes)}</span></div>
-                                    <div>Since: <span className="text-gray-200">{stats.oldestTimestamp ? new Date(stats.oldestTimestamp).toLocaleDateString() : '\u2014'}</span></div>
+                                    <div>Since: <span className="text-gray-200">{stats.oldestTimestamp ? new Date(stats.oldestTimestamp).toLocaleDateString() : '—'}</span></div>
                                 </div>
 
                                 <div className="border-t border-gray-700 pt-2 mt-2">
                                     <div className="text-[11px] font-semibold text-gray-300 mb-1">Export as JSONL</div>
                                     <div className="flex flex-col gap-0.5 text-[11px] text-gray-300">
-                                        <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={includeCorrected} onChange={e => setIncludeCorrected(e.target.checked)} /> Corrected ({stats.corrected}) <span className="text-emerald-400">\u2190 recommended</span></label>
+                                        <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={includeCorrected} onChange={e => setIncludeCorrected(e.target.checked)} /> Corrected ({stats.corrected}) <span className="text-emerald-400">← recommended</span></label>
                                         <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={includeUnedited} onChange={e => setIncludeUnedited(e.target.checked)} /> Unedited ({stats.unedited})</label>
-                                        <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={includeRewritten} onChange={e => setIncludeRewritten(e.target.checked)} /> Rewritten ({stats.rewritten}) <span className="text-amber-400">\u2190 likely noisy</span></label>
+                                        <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={includeRewritten} onChange={e => setIncludeRewritten(e.target.checked)} /> Rewritten ({stats.rewritten}) <span className="text-amber-400">← likely noisy</span></label>
                                     </div>
                                     <button
                                         onClick={handleExport}
                                         disabled={exporting || (!includeUnedited && !includeCorrected && !includeRewritten)}
                                         className="mt-2 w-full px-2 py-1.5 text-xs bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded font-medium"
                                     >
-                                        {exporting ? 'Exporting\u2026' : 'Download .jsonl'}
+                                        {exporting ? 'Exporting…' : 'Download .jsonl'}
                                     </button>
                                 </div>
                             </>

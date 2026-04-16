@@ -875,7 +875,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                 </svg>
               ) : isListening ? <StopIcon className={micIconSize} /> : <MicrophoneIcon className={micIconSize} />}
               <span className={layoutDensity === 'compact' ? 'hidden sm:inline text-sm' : 'text-sm'}>
-                  {!isListening && dictationMode === 'server' && serverProcessing ? 'Finishing\u2026' : isListening ? t('editor.recording') : t('editor.pressToTalk')}
+                  {!isListening && dictationMode === 'server' && serverProcessing ? 'Finishing…' : isListening ? t('editor.recording') : t('editor.pressToTalk')}
               </span>
             </button>
             <button
@@ -991,7 +991,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                           className="flex-shrink-0 text-red-300 hover:text-red-100 text-base leading-none"
                           aria-label="Dismiss error"
                           title="Dismiss"
-                      >\u00d7</button>
+                      >×</button>
                   )}
               </span>
           ) : isListening && dictationMode === 'server' ? (
@@ -1000,7 +1000,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
                   </span>
-                  Recording (auto-segmenting every 6s){serverProcessing ? ' \u00b7 transcribing\u2026' : ''}
+                  Recording (auto-segmenting every 6s){serverProcessing ? ' · transcribing…' : ''}
               </span>
           ) : !isListening && serverProcessing ? (
               <span className="text-purple-300 flex items-center gap-1.5">
