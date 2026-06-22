@@ -43,6 +43,27 @@ export class GeminiProvider implements AIProvider {
     }
   }
 
+  async mergeReport(base: string, deltas: string, language: Language): Promise<string> {
+    try {
+      const systemInstruction =
+        "You are a radiology reporting assistant. You are given a BASE report (a full template) and DELTAS (the radiologist's notes on what is different for THIS patient: measurements, findings present or absent, severity, etc.). " +
+        "Integrate the DELTAS into the BASE: update the relevant measurements, add/remove or flip the affected findings, and adjust the conclusion to match. " +
+        "Keep every other part of the BASE exactly as written. Preserve its language, structure, terminology, and style. " +
+        "Do NOT invent findings, measurements, or severity that are not in the BASE or the DELTAS. Keep abbreviations as written. " +
+        `Write in the same language as the BASE (${language}). Return ONLY the final report as plain text, with no markdown and no commentary.`;
+      const result = await this.ai.models.generateContent({
+        model: this.model,
+        config: { systemInstruction },
+        contents: `BASE:\n${base}\n\nDELTAS:\n${deltas}`,
+      });
+      return result.text.trim();
+    } catch (error) {
+      console.error('Error merging report with Gemini:', error);
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new AIProviderError(`Gemini: ${detail}`, 'Gemini', error instanceof Error ? error : undefined);
+    }
+  }
+
   async correctSelection(text: string): Promise<string> {
     try {
       const result = await this.ai.models.generateContent({

@@ -3,7 +3,11 @@ import { CogIcon, PlusIcon, VerticalSplitIcon, HorizontalSplitIcon, ChevronRight
 import StudyTypesAndTemplatesPanel from '../components/StudyTypesAndTemplatesPanel';
 import EditorPanel from '../components/EditorPanel';
 import TemplateModal from '../components/TemplateModal';
+import TemplateFillModal from '../components/TemplateFillModal';
+import AIMergeModal from '../components/AIMergeModal';
+import SnippetPalette from '../components/SnippetPalette';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { hasMacros } from '../utils/templateMacros';
 import PlannerView from '../components/planner/PlannerView';
 import ReportGenerator from '../components/studyManager/ReportGenerator';
 import ReportSubmissionPage from '../pages/ReportSubmissionPage';
@@ -38,6 +42,8 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
     const [text, setText] = useState<string>('');
     const [comparisonText, setComparisonText] = useState<string>('');
     const [loadedTemplate, setLoadedTemplate] = useState<Template | null>(null);
+    const [fill, setFill] = useState<{ template: Template; mode: 'replace' | 'append' } | null>(null);
+    const [aiMergeOpen, setAiMergeOpen] = useState(false);
     const [layoutMode, setLayoutMode] = useState<'normal' | 'split-vertical' | 'split-horizontal'>('normal');
     const [mainLayout, setMainLayout] = useState<'columns' | 'rows'>('columns');
     const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
@@ -52,11 +58,28 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
         return text.replace(/<[^>]*>?/gm, '').trim().length > 0;
     }, [text]);
 
+    // Replace the editor content with a (already rendered) report body.
+    const insertReplace = (body: string, template: Template) => {
+        setText(`<span class="text-template">${body}</span>`);
+        setLoadedTemplate(template);
+        if (activeTab !== 'editor') setActiveTab('editor');
+    };
+
+    // Append a snippet to the existing report content (Approach 2).
+    const insertAppend = (body: string) => {
+        const snippet = `<span class="text-template">${body}</span>`;
+        setText(prev => (prev && prev.replace(/<[^>]*>/g, '').trim() ? `${prev}<br><br>${snippet}` : snippet));
+        if (activeTab !== 'editor') setActiveTab('editor');
+    };
+
     const handleSelectTemplate = (template: Template) => {
-        const loadTemplate = () => {
-            setText(`<span class="text-template">${template.content}</span>`);
-            setLoadedTemplate(template);
-            if (activeTab !== 'editor') setActiveTab('editor');
+        const proceed = () => {
+            if (hasMacros(template.content)) {
+                setFill({ template, mode: 'replace' });
+                if (activeTab !== 'editor') setActiveTab('editor');
+            } else {
+                insertReplace(template.content, template);
+            }
         };
 
         if (hasUnsavedChanges) {
@@ -65,13 +88,36 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
                 title: 'Load Template?',
                 message: 'You have unsaved content in the editor. Loading this template will replace it. Continue?',
                 onConfirm: () => {
-                    loadTemplate();
+                    proceed();
                     closeConfirmation();
                 }
             });
         } else {
-            loadTemplate();
+            proceed();
         }
+    };
+
+    // Quick-insert palette (Approach 2): append, opening the fill panel first if needed.
+    const handlePickSnippet = (template: Template) => {
+        if (hasMacros(template.content)) {
+            setFill({ template, mode: 'append' });
+        } else {
+            insertAppend(template.content);
+        }
+    };
+
+    const handleFillInsert = (rendered: string) => {
+        if (!fill) return;
+        if (fill.mode === 'replace') insertReplace(rendered, fill.template);
+        else insertAppend(rendered);
+        setFill(null);
+    };
+
+    const handleMergeResult = (text: string) => {
+        setText(`<span class="text-template">${text.replace(/\n/g, '<br>')}</span>`);
+        setLoadedTemplate(null);
+        if (activeTab !== 'editor') setActiveTab('editor');
+        setAiMergeOpen(false);
     };
 
     const handlePreviewTemplate = (template: Template) => {
@@ -286,19 +332,22 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
             default:
                 return (
                     <div className={`relative flex-grow min-h-0 grid ${gapClass} ${mainGridClasses} h-full ${hideHeader ? 'p-4' : ''}`}>
-                        <div className="relative h-full min-h-0 min-w-0">
-                            <EditorPanel
-                                text={text}
-                                setText={setText}
-                                onClear={handleClearEditor}
-                                loadedTemplate={loadedTemplate}
-                                layoutMode={layoutMode}
-                                setLayoutMode={setLayoutMode}
-                                comparisonText={comparisonText}
-                                setComparisonText={setComparisonText}
-                                comparisonTitle={previewTemplateTitle}
-                                remoteAudioStream={remoteAudioStream}
-                            />
+                        <div className="relative h-full min-h-0 min-w-0 flex flex-col gap-2">
+                            <SnippetPalette onPick={handlePickSnippet} onAiMerge={() => setAiMergeOpen(true)} />
+                            <div className="relative flex-1 min-h-0">
+                                <EditorPanel
+                                    text={text}
+                                    setText={setText}
+                                    onClear={handleClearEditor}
+                                    loadedTemplate={loadedTemplate}
+                                    layoutMode={layoutMode}
+                                    setLayoutMode={setLayoutMode}
+                                    comparisonText={comparisonText}
+                                    setComparisonText={setComparisonText}
+                                    comparisonTitle={previewTemplateTitle}
+                                    remoteAudioStream={remoteAudioStream}
+                                />
+                            </div>
                         </div>
                         <div className={`relative ${isPanelCollapsed ? 'hidden' : ''} h-full min-h-0 min-w-0`}>
                             <StudyTypesAndTemplatesPanel
@@ -380,6 +429,20 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
 
             {/* Global Modals */}
             <TemplateModal />
+            {fill && (
+                <TemplateFillModal
+                    template={fill.template}
+                    mode={fill.mode}
+                    onInsert={handleFillInsert}
+                    onClose={() => setFill(null)}
+                />
+            )}
+            {aiMergeOpen && (
+                <AIMergeModal
+                    onResult={handleMergeResult}
+                    onClose={() => setAiMergeOpen(false)}
+                />
+            )}
             <ConfirmationModal
                 isOpen={confirmationState.isOpen}
                 title={confirmationState.title}

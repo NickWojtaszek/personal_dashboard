@@ -37,6 +37,17 @@ export interface AIProvider {
   checkGrammar(text: string): Promise<Omit<GrammarError, 'id'>[]>;
 
   /**
+   * Merge a base report/template with the radiologist's "deltas" (the bits that
+   * differ for this patient: measurements, findings present/absent, etc.).
+   * Optional — providers that don't implement it fall back to an error in AIService.
+   * @param base The base report or template (full text)
+   * @param deltas Free-text notes describing what is different for this case
+   * @param language The report language
+   * @returns The merged report as plain text
+   */
+  mergeReport?(base: string, deltas: string, language: Language): Promise<string>;
+
+  /**
    * Test if the provider is properly configured and can be used
    * @returns true if provider is ready
    */

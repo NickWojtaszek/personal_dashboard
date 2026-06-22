@@ -104,6 +104,20 @@ export class AIService {
   }
 
   /**
+   * Merge a base report/template with the radiologist's dictated deltas.
+   */
+  async mergeReport(base: string, deltas: string, language: Language): Promise<string> {
+    const provider = getActiveProvider(this.aiSettings);
+    if (!provider.mergeReport) {
+      throw new AIProviderError(
+        `AI-merge is currently available with the Google Gemini provider. The active provider ("${provider.getName()}") does not support it yet — switch to Gemini in Settings > AI Configuration.`,
+        provider.getName()
+      );
+    }
+    return provider.mergeReport(base, deltas, language);
+  }
+
+  /**
    * Quick grammar and spelling correction
    */
   async correctSelection(text: string): Promise<string> {
