@@ -17,7 +17,7 @@ const StudyTypesAndTemplatesPanel: React.FC<StudyTypesAndTemplatesPanelProps> = 
       templates, studyTypes, addStudyType, updateStudyType, 
       deleteStudyType, reorderStudyTypes, cloneTemplate, deleteTemplate, reorderTemplates
   } = useTemplate();
-  const { templateModal: { setEditingTemplate, setIsOpen: setIsModalOpen }, setConfirmationState, closeConfirmation } = useApp();
+  const { templateModal: { setEditingTemplate, setIsOpen: setIsModalOpen } } = useApp();
   const { currentTheme } = useTheme();
   
   const [expandedStudyType, setExpandedStudyType] = useState<StudyType | null>(null);
@@ -121,15 +121,9 @@ const StudyTypesAndTemplatesPanel: React.FC<StudyTypesAndTemplatesPanelProps> = 
 
   const handleDeleteTemplate = (e: React.MouseEvent, template: Template) => {
     e.stopPropagation();
-    setConfirmationState({
-      isOpen: true,
-      title: t('templates.deleteConfirm'),
-      message: `Are you sure you want to delete the template "${template.title}"? This action cannot be undone.`,
-      onConfirm: () => {
-        deleteTemplate(template.id);
-        closeConfirmation();
-      }
-    });
+    // deleteTemplate already shows its own confirmation dialog — wrapping it in a
+    // second one here cancelled the real delete, so call it directly.
+    deleteTemplate(template.id);
   };
 
   const renderTemplateItem = (template: Template) => (
