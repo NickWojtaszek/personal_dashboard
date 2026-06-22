@@ -61,7 +61,10 @@ const TemplateModal: React.FC = () => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-fade-in" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b border-gray-700">
           <h2 className="text-xl font-bold text-white">{editingTemplate ? t('templateModal.editTitle') : t('templateModal.addTitle')}</h2>
@@ -117,6 +120,16 @@ const TemplateModal: React.FC = () => {
                 rows={12}
                 placeholder={t('templateModal.templateContentPlaceholder')}
               />
+              <details className="mt-2 text-xs text-gray-400">
+                <summary className="cursor-pointer hover:text-gray-200 select-none">Macro syntax (optional — for clickable fill-in templates)</summary>
+                <div className="mt-2 space-y-1 bg-gray-900/60 border border-gray-700 rounded p-2 font-mono">
+                  <div><span className="text-blue-300">{'{{name=default}}'}</span> — pre-filled field (measurements)</div>
+                  <div><span className="text-blue-300">{'{{name|optA|optB}}'}</span> — dropdown (first = default)</div>
+                  <div><span className="text-blue-300">{'[[name: text]]'}</span> — optional line (on by default)</div>
+                  <div><span className="text-blue-300">{'[[name: on || off]]'}</span> — present / absent toggle</div>
+                  <div className="text-gray-500 pt-1">Tokens are optional — a plain template still works as before.</div>
+                </div>
+              </details>
             </div>
           </div>
           <div className="p-4 border-t border-gray-700 bg-gray-800/50 flex justify-end space-x-3">
