@@ -26,9 +26,9 @@ const promptSnippets = {
       5: "Zastosuj wszystko z poziomu 4, a dodatkowo uwzględnij istotne negatywy i odnieś się do ogólnych wytycznych praktyki klinicznej."
     },
     conclusionDetail: {
-      1: "Na końcu wygeneruj zwięzłą sekcję 'Wnioski'. Umieść każde istotne rozpoznanie w osobnej linii, telegraficznie, bez wstępu typu 'Obraz badania wskazuje na...'. Nie dodawaj innych sekcji.",
-      2: "Na końcu wygeneruj sekcję 'Wnioski' (każde rozpoznanie w osobnej linii, telegraficznie, bez wstępu typu 'Obraz badania wskazuje na...'), a po niej rozbudowaną sekcję 'Szczegółowy wniosek' opisującą wszystkie istotne patologie. Nie dodawaj zaleceń.",
-      3: "Na końcu wygeneruj pełen zestaw, telegraficznie i bez wstępów: 'Wnioski' (każde rozpoznanie w osobnej linii), 'Szczegółowy wniosek' oraz konkretne, praktyczne 'Zalecenia' dotyczące dalszej diagnostyki lub leczenia."
+      1: "Na końcu wygeneruj zwięzłą sekcję 'Wnioski' zawierającą TYLKO najważniejsze klinicznie rozpoznania — główną patologię oraz to, co odpowiada na pytanie kliniczne lub wpływa na postępowanie. Każde rozpoznanie w osobnej linii, telegraficznie, bez wstępu typu 'Obraz badania wskazuje na...' i bez znaczników listy (myślników/gwiazdek). NIE przepisuj wszystkich znalezisk z opisu — drobne, przygodne i prawidłowe zmiany pomiń lub ujmij zbiorczo. Wnioski mają być wyraźnie krótsze niż opis (zwykle kilka punktów). Nie dodawaj innych sekcji.",
+      2: "Na końcu wygeneruj sekcję 'Wnioski' (tylko najważniejsze rozpoznania, każde w osobnej linii, telegraficznie, bez wstępów i bez znaczników listy), a po niej sekcję 'Szczegółowy wniosek' opisującą istotne patologie. Pomiń lub ujmij zbiorczo drobne i prawidłowe znaleziska. Nie dodawaj zaleceń.",
+      3: "Na końcu wygeneruj, telegraficznie i bez znaczników listy: 'Wnioski' (tylko najważniejsze rozpoznania, każde w osobnej linii), 'Szczegółowy wniosek' opisujący istotne patologie oraz konkretne, praktyczne 'Zalecenia'. Pomiń lub ujmij zbiorczo drobne i prawidłowe znaleziska."
     },
     recistAnalysis: {
       true: "Włącz analizę wg RECIST 1.1. Zidentyfikuj zmiany mierzalne i niemierzalne, oblicz sumę najdłuższych wymiarów (SLD) i oceń odpowiedź na leczenie, jeśli dostępne jest badanie porównawcze.",
@@ -62,9 +62,9 @@ const promptSnippets = {
       5: "Apply everything from level 4, and additionally, include significant negatives and refer to general clinical practice guidelines."
     },
     conclusionDetail: {
-      1: "At the end, generate a concise 'Conclusion' section. Put each significant finding on its own line, telegraphically, with no preamble such as 'The study shows...'. Do not add any other sections.",
-      2: "At the end, generate a 'Conclusion' section (each finding on its own line, telegraphic, no preamble such as 'The study shows...'), followed by an expanded 'Detailed conclusion' section describing all significant pathologies. Do not add recommendations.",
-      3: "At the end, generate the full set, telegraphically and without preambles: 'Conclusion' (each finding on its own line), 'Detailed conclusion', and specific, practical 'Recommendations' for further diagnosis or treatment."
+      1: "At the end, generate a concise 'Conclusion' section with ONLY the most clinically important diagnoses — the main pathology and whatever answers the clinical question or changes management. Each on its own line, telegraphically, with no preamble such as 'The study shows...' and no list markers (dashes/bullets). Do NOT restate every finding from the body — omit or briefly group minor, incidental, and normal findings. The conclusion must be clearly shorter than the findings (usually a few points). Do not add any other sections.",
+      2: "At the end, generate a 'Conclusion' section (only the most important diagnoses, each on its own line, telegraphic, no preamble, no list markers), followed by a 'Detailed conclusion' section describing the significant pathologies. Omit or briefly group minor and normal findings. Do not add recommendations.",
+      3: "At the end, generate, telegraphically and without list markers: 'Conclusion' (only the most important diagnoses, each on its own line), 'Detailed conclusion' describing the significant pathologies, and specific, practical 'Recommendations'. Omit or briefly group minor and normal findings."
     },
     recistAnalysis: {
       true: "Enable RECIST 1.1 analysis. Identify target and non-target lesions, calculate the sum of longest diameters (SLD), and assess treatment response if a comparative study is available.",
@@ -98,9 +98,9 @@ const promptSnippets = {
       5: "Wenden Sie alles von Stufe 4 an und berücksichtigen Sie zusätzlich wichtige Negativbefunde und verweisen Sie auf allgemeine klinische Praxisleitlinien."
     },
     conclusionDetail: {
-      1: "Erstellen Sie am Ende einen prägnanten Abschnitt 'Schlussfolgerung'. Setzen Sie jeden signifikanten Befund in eine eigene Zeile, telegrammartig, ohne Einleitung wie 'Die Untersuchung zeigt...'. Fügen Sie keine weiteren Abschnitte hinzu.",
-      2: "Erstellen Sie am Ende einen Abschnitt 'Schlussfolgerung' (jeder Befund in eigener Zeile, telegrammartig, ohne Einleitung wie 'Die Untersuchung zeigt...') und anschließend einen erweiterten Abschnitt 'Detaillierte Schlussfolgerung', der alle signifikanten Pathologien beschreibt. Fügen Sie keine Empfehlungen hinzu.",
-      3: "Erstellen Sie am Ende das vollständige Set, telegrammartig und ohne Einleitungen: 'Schlussfolgerung' (jeder Befund in eigener Zeile), 'Detaillierte Schlussfolgerung' und spezifische, praktische 'Empfehlungen' für die weitere Diagnose oder Behandlung."
+      1: "Erstellen Sie am Ende einen prägnanten Abschnitt 'Schlussfolgerung' mit NUR den klinisch wichtigsten Diagnosen — der Hauptpathologie und allem, was die klinische Frage beantwortet oder das Management ändert. Jede in eigener Zeile, telegrammartig, ohne Einleitung wie 'Die Untersuchung zeigt...' und ohne Aufzählungszeichen (Striche/Punkte). Wiederholen Sie NICHT jeden Befund aus dem Bericht — geringfügige, zufällige und normale Befunde weglassen oder kurz zusammenfassen. Die Schlussfolgerung muss deutlich kürzer als der Befund sein (meist wenige Punkte). Fügen Sie keine weiteren Abschnitte hinzu.",
+      2: "Erstellen Sie am Ende einen Abschnitt 'Schlussfolgerung' (nur die wichtigsten Diagnosen, jede in eigener Zeile, telegrammartig, ohne Einleitung, ohne Aufzählungszeichen) und anschließend einen Abschnitt 'Detaillierte Schlussfolgerung', der die signifikanten Pathologien beschreibt. Geringfügige und normale Befunde weglassen oder kurz zusammenfassen. Fügen Sie keine Empfehlungen hinzu.",
+      3: "Erstellen Sie am Ende, telegrammartig und ohne Aufzählungszeichen: 'Schlussfolgerung' (nur die wichtigsten Diagnosen, jede in eigener Zeile), 'Detaillierte Schlussfolgerung' mit den signifikanten Pathologien und spezifische, praktische 'Empfehlungen'. Geringfügige und normale Befunde weglassen oder kurz zusammenfassen."
     },
     recistAnalysis: {
       true: "Aktivieren Sie die RECIST 1.1-Analyse. Identifizieren Sie Ziel- und Nicht-Zielläsionen, berechnen Sie die Summe der längsten Durchmesser (SLD) und bewerten Sie das Ansprechen auf die Behandlung, falls eine Vergleichsstudie verfügbar ist.",
