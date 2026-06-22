@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { Template, StudyType, Scenario } from '../types';
 import { useTranslations } from '../context/LanguageContext';
 import { useTemplate } from '../context/TemplateContext';
 import { useApp } from '../context/AppContext';
+import { analyzeTemplate, defaultValues, renderTemplate } from '../utils/templateMacros';
 
 const TemplateModal: React.FC = () => {
   const { t } = useTranslations();
@@ -41,6 +42,19 @@ const TemplateModal: React.FC = () => {
         setScenario('');
     }
   }, [studyType, templateData.scenarios, scenario]);
+
+  // Live macro preview (rendered with default values) — updates as you type.
+  const macroControls = useMemo(() => analyzeTemplate(content), [content]);
+  const macroPreview = useMemo(() => renderTemplate(content, defaultValues(macroControls)), [content, macroControls]);
+  const macroCounts = useMemo(() => {
+    let fields = 0, choices = 0, blocks = 0;
+    for (const c of macroControls) {
+      if (c.kind === 'text') fields++;
+      else if (c.kind === 'choice') choices++;
+      else blocks++;
+    }
+    return { fields, choices, blocks };
+  }, [macroControls]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,6 +144,17 @@ const TemplateModal: React.FC = () => {
                   <div className="text-gray-500 pt-1">Tokens are optional — a plain template still works as before.</div>
                 </div>
               </details>
+              {macroControls.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-xs text-gray-400 mb-1">
+                    Live preview
+                    <span className="ml-2 text-gray-500">
+                      {macroCounts.fields} field{macroCounts.fields !== 1 ? 's' : ''} · {macroCounts.choices} choice{macroCounts.choices !== 1 ? 's' : ''} · {macroCounts.blocks} toggle{macroCounts.blocks !== 1 ? 's' : ''} (shown with defaults)
+                    </span>
+                  </div>
+                  <pre className="whitespace-pre-wrap text-sm text-gray-200 bg-gray-900/60 border border-gray-700 rounded p-2 max-h-48 overflow-y-auto font-sans leading-relaxed">{macroPreview}</pre>
+                </div>
+              )}
             </div>
           </div>
           <div className="p-4 border-t border-gray-700 bg-gray-800/50 flex justify-end space-x-3">
