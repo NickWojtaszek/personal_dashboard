@@ -38,7 +38,10 @@ const AIMergeModal: React.FC<Props> = ({ onResult, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
       <div
         className="bg-gray-800 text-gray-100 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-700"
         onClick={e => e.stopPropagation()}
