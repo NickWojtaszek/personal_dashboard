@@ -6,6 +6,7 @@ import AppsPage from './components/AppsPage';
 import GeneralPage from './components/GeneralPage';
 import EditAppModal from './components/EditAppModal';
 import AllowedUsersModal from './components/AllowedUsersModal';
+import BugNotes from './components/BugNotes';
 import { isSupabaseEnabled } from './lib/supabase';
 import { INITIAL_APPS, APP_GROUPS, INITIAL_PROJECTS, PROJECT_GROUPS, INITIAL_PROPERTIES, PROPERTY_GROUPS, INITIAL_INSURANCE_POLICIES, INSURANCE_GROUPS, INITIAL_CONTRACTS, CONTRACT_GROUPS, INITIAL_INVOICES, PURCHASE_INVOICE_CATEGORIES, INVOICE_LOCATIONS, INITIAL_VEHICLES, VEHICLE_GROUPS } from './constants';
 
@@ -1041,6 +1042,7 @@ const App: React.FC = () => {
             {isSupabaseEnabled() && (
                 <AllowedUsersModal open={showUsersModal} onClose={() => setShowUsersModal(false)} />
             )}
+            <BugNotes page={page} />
         </div>
     );
 };

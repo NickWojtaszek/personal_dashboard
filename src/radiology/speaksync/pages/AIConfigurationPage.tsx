@@ -23,7 +23,7 @@ const AIConfigurationPage: React.FC = () => {
   }> = {
     gemini: {
       name: 'Google Gemini',
-      defaultModel: 'gemini-2.5-flash',
+      defaultModel: 'gemini-3.5-flash',
       info: 'Get API key from: https://makersuite.google.com/app/apikey'
     },
     openai: {

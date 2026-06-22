@@ -20,15 +20,15 @@ const promptSnippets = {
     },
     oncologyDetail: {
       1: "Wplataj w tekst tylko aktualne pomiary zmian. Nie dodawaj porównań ani lokalizacji obrazów.",
-      2: "Wplataj pomiary w tekst i dołącz lokalizacje obrazów (np. 'im. 123, se. 4').",
+      2: "Wplataj pomiary w tekst i dołącz lokalizacje obrazów w formacie '(im91 se3)'.",
       3: "Wplataj pomiary porównawcze (np. 'guzek 15x10 mm, poprzednio 12x8 mm') wraz z lokalizacjami. Dla węzłów chłonnych dodawaj grupy w nawiasach.",
       4: "Zastosuj wszystko z poziomu 3, a dodatkowo aktywnie odnieś się do pytań klinicznych i znanych chorób pacjenta. Wskaż, jeśli raport tego nie robi.",
       5: "Zastosuj wszystko z poziomu 4, a dodatkowo uwzględnij istotne negatywy i odnieś się do ogólnych wytycznych praktyki klinicznej."
     },
     conclusionDetail: {
-      1: "Na końcu raportu wygeneruj tylko jedną, zwięzłą sekcję 'Wniosek', podsumowującą najważniejsze znaleziska w jednym zdaniu. Nie dodawaj żadnych innych sekcji.",
-      2: "Na końcu raportu wygeneruj sekcję 'Wniosek' oraz rozbudowaną sekcję 'Szczegółowy wniosek', opisującą wszystkie istotne patologie. Nie dodawaj zaleceń.",
-      3: "Na końcu raportu wygeneruj pełen zestaw: 'Wniosek', 'Szczegółowy wniosek' oraz konkretne, praktyczne 'Zalecenia' dotyczące dalszej diagnostyki lub leczenia."
+      1: "Na końcu wygeneruj zwięzłą sekcję 'Wnioski'. Umieść każde istotne rozpoznanie w osobnej linii, telegraficznie, bez wstępu typu 'Obraz badania wskazuje na...'. Nie dodawaj innych sekcji.",
+      2: "Na końcu wygeneruj sekcję 'Wnioski' (każde rozpoznanie w osobnej linii, telegraficznie, bez wstępu typu 'Obraz badania wskazuje na...'), a po niej rozbudowaną sekcję 'Szczegółowy wniosek' opisującą wszystkie istotne patologie. Nie dodawaj zaleceń.",
+      3: "Na końcu wygeneruj pełen zestaw, telegraficznie i bez wstępów: 'Wnioski' (każde rozpoznanie w osobnej linii), 'Szczegółowy wniosek' oraz konkretne, praktyczne 'Zalecenia' dotyczące dalszej diagnostyki lub leczenia."
     },
     recistAnalysis: {
       true: "Włącz analizę wg RECIST 1.1. Zidentyfikuj zmiany mierzalne i niemierzalne, oblicz sumę najdłuższych wymiarów (SLD) i oceń odpowiedź na leczenie, jeśli dostępne jest badanie porównawcze.",
@@ -56,15 +56,15 @@ const promptSnippets = {
     },
     oncologyDetail: {
       1: "Weave only current measurements of lesions into the text. Do not add comparisons or image locations.",
-      2: "Weave measurements into the text and include image locations (e.g., 'im. 123, se. 4').",
+      2: "Weave measurements into the text and include image locations in the format '(im91 se3)'.",
       3: "Weave in comparative measurements (e.g., 'nodule 15x10 mm, previously 12x8 mm') along with locations. For lymph nodes, add groups in parentheses.",
       4: "Apply everything from level 3, and additionally, actively address clinical questions and the patient's known diseases. Indicate if the report fails to do so.",
       5: "Apply everything from level 4, and additionally, include significant negatives and refer to general clinical practice guidelines."
     },
     conclusionDetail: {
-      1: "At the end of the report, generate only a single, concise 'Conclusion' section summarizing the most important findings in one sentence. Do not add any other sections.",
-      2: "At the end of the report, generate a 'Conclusion' section and an expanded 'Detailed conclusion' section describing all significant pathologies. Do not add recommendations.",
-      3: "At the end of the report, generate the full set: 'Conclusion', 'Detailed conclusion', and specific, practical 'Recommendations' for further diagnosis or treatment."
+      1: "At the end, generate a concise 'Conclusion' section. Put each significant finding on its own line, telegraphically, with no preamble such as 'The study shows...'. Do not add any other sections.",
+      2: "At the end, generate a 'Conclusion' section (each finding on its own line, telegraphic, no preamble such as 'The study shows...'), followed by an expanded 'Detailed conclusion' section describing all significant pathologies. Do not add recommendations.",
+      3: "At the end, generate the full set, telegraphically and without preambles: 'Conclusion' (each finding on its own line), 'Detailed conclusion', and specific, practical 'Recommendations' for further diagnosis or treatment."
     },
     recistAnalysis: {
       true: "Enable RECIST 1.1 analysis. Identify target and non-target lesions, calculate the sum of longest diameters (SLD), and assess treatment response if a comparative study is available.",
@@ -92,15 +92,15 @@ const promptSnippets = {
     },
     oncologyDetail: {
       1: "Fügen Sie nur aktuelle Messungen von Läsionen in den Text ein. Fügen Sie keine Vergleiche oder Bildorte hinzu.",
-      2: "Fügen Sie Messungen in den Text ein und geben Sie Bildorte an (z. B. 'Bild 123, Serie 4').",
+      2: "Fügen Sie Messungen in den Text ein und geben Sie Bildorte im Format '(im91 se3)' an.",
       3: "Fügen Sie vergleichende Messungen (z. B. 'Knoten 15x10 mm, zuvor 12x8 mm') zusammen mit den Orten ein. Fügen Sie bei Lymphknoten Gruppen in Klammern hinzu.",
       4: "Wenden Sie alles von Stufe 3 an und gehen Sie zusätzlich aktiv auf klinische Fragen und bekannte Krankheiten des Patienten ein. Weisen Sie darauf hin, wenn der Bericht dies nicht tut.",
       5: "Wenden Sie alles von Stufe 4 an und berücksichtigen Sie zusätzlich wichtige Negativbefunde und verweisen Sie auf allgemeine klinische Praxisleitlinien."
     },
     conclusionDetail: {
-      1: "Erstellen Sie am Ende des Berichts nur einen einzigen, prägnanten Abschnitt 'Schlussfolgerung', der die wichtigsten Ergebnisse in einem Satz zusammenfasst. Fügen Sie keine weiteren Abschnitte hinzu.",
-      2: "Erstellen Sie am Ende des Berichts einen Abschnitt 'Schlussfolgerung' und einen erweiterten Abschnitt 'Detaillierte Schlussfolgerung', der alle signifikanten Pathologien beschreibt. Fügen Sie keine Empfehlungen hinzu.",
-      3: "Erstellen Sie am Ende des Berichts das vollständige Set: 'Schlussfolgerung', 'Detaillierte Schlussfolgerung' und spezifische, praktische 'Empfehlungen' für die weitere Diagnose oder Behandlung."
+      1: "Erstellen Sie am Ende einen prägnanten Abschnitt 'Schlussfolgerung'. Setzen Sie jeden signifikanten Befund in eine eigene Zeile, telegrammartig, ohne Einleitung wie 'Die Untersuchung zeigt...'. Fügen Sie keine weiteren Abschnitte hinzu.",
+      2: "Erstellen Sie am Ende einen Abschnitt 'Schlussfolgerung' (jeder Befund in eigener Zeile, telegrammartig, ohne Einleitung wie 'Die Untersuchung zeigt...') und anschließend einen erweiterten Abschnitt 'Detaillierte Schlussfolgerung', der alle signifikanten Pathologien beschreibt. Fügen Sie keine Empfehlungen hinzu.",
+      3: "Erstellen Sie am Ende das vollständige Set, telegrammartig und ohne Einleitungen: 'Schlussfolgerung' (jeder Befund in eigener Zeile), 'Detaillierte Schlussfolgerung' und spezifische, praktische 'Empfehlungen' für die weitere Diagnose oder Behandlung."
     },
     recistAnalysis: {
       true: "Aktivieren Sie die RECIST 1.1-Analyse. Identifizieren Sie Ziel- und Nicht-Zielläsionen, berechnen Sie die Summe der längsten Durchmesser (SLD) und bewerten Sie das Ansprechen auf die Behandlung, falls eine Vergleichsstudie verfügbar ist.",
@@ -127,14 +127,20 @@ const promptTemplates = {
 3.  **Korekta Błędów:**
     - Skoryguj oczywiste błędy ortograficzne i literówki.
     - Popraw błędy w terminologii medycznej (np. "tenisach wieńcowych" na "tętnicach wieńcowych", "rozstrzygnie oskrzeli" na "rozstrzeni oskrzeli"). Używaj spójnej terminologii, np. zgodnej z RSNA RadLex.
-4.  **Uzupełnianie i Ujednolicanie:**
-    - Rozwiń popularne skróty do pełnych form (np. "seg." na "segmencie").
-    - Uzupełnij brakujące słowa, aby zdania miały logiczny sens (np. "odpowiednie" na "odpowiednie do wieku").
-5.  **Usuwanie Redundancji:** Jeśli w tekście wielokrotnie pojawiają się opisy tych samych organów lub wyników, połącz je w jeden spójny i logiczny akapit.
-6.  **Błędy Logiczne:** Jeśli znajdziesz sprzeczności w raporcie, zaznacz je, np.: [SPRZECZNOŚĆ].
-7.  **Format Wyjściowy:** Nie używaj formatowania markdown (np. pogrubienia). Zwracaj wyłącznie czysty tekst.
-8.  **Płynność Języka (Konfigurowalne):** {{FLUENCY_RULE}}
-9.  **Streszczanie (Konfigurowalne):** {{SUMMARIZATION_RULE}}
+4.  **Uzupełnianie:** Uzupełnij brakujące słowa, aby zdania miały logiczny sens (np. "odpowiednie" na "odpowiednie do wieku").
+5.  **Skróty i Terminy:**
+    - Zachowaj wszystkie skróty w formie podyktowanej (np. "TK", "Angio-TK", "MR", "RTG") — nie rozwijaj ich do pełnych form.
+    - Nie dodawaj tłumaczeń ani objaśnień w nawiasach do utrwalonych terminów zapożyczonych (np. "shunt splenorenalny").
+    - Zachowaj lokalizacje obrazów/przekrojów DOKŁADNIE w podyktowanym formacie, np. "(im91 se3)" — nie usuwaj ich ani nie przenoś, nie dodawaj kropek, przecinków ani spacji wewnątrz (nie zmieniaj na "im. 91, se. 3") i nie oddzielaj "im"/"se" od cyfr.
+6.  **Styl Przeczeń i Kwalifikatory:**
+    - Preferuj zwroty przeczące w formie "Nie ma..." lub "nie stwierdzam..." zamiast "nie stwierdzono...".
+    - Nie dodawaj określeń osłabiających ani kwalifikatorów, których nie było w dyktandzie (np. "wyraźnych").
+7.  **Nasilenie i Interpretacja (WAŻNE — BEZPIECZEŃSTWO):** Nie wprowadzaj określeń stopnia nasilenia (np. "zaawansowane", "istotne", "znaczne") ani interpretacji, których nie ma w części opisowej. We wnioskach stosuj dokładnie to samo słownictwo nasilenia, co w opisie.
+8.  **Usuwanie Redundancji:** Jeśli w tekście wielokrotnie pojawiają się opisy tych samych organów lub wyników, połącz je w jeden spójny i logiczny akapit.
+9.  **Błędy Logiczne:** Jeśli znajdziesz sprzeczności w raporcie, zaznacz je, np.: [SPRZECZNOŚĆ].
+10. **Format Wyjściowy:** Nie używaj formatowania markdown (np. pogrubienia). Zwracaj wyłącznie czysty tekst.
+11. **Płynność Języka (Konfigurowalne):** {{FLUENCY_RULE}}
+12. **Streszczanie (Konfigurowalne):** {{SUMMARIZATION_RULE}}
 
 **Analiza Onkologiczna:**
 1.  **Poziom Szczegółowości:** {{ONCOLOGY_DETAIL_RULE}}{{RECIST_RULE}}{{TNM_RULE}}
@@ -149,11 +155,14 @@ const promptTemplates = {
 **General Rules:**
 1.  **Corrections:** Fix punctuation, grammatical, and stylistic errors.
 2.  **No Markdown:** Do not use markdown formatting like bolding or italics. Return only plain text.
-3.  **Language Fluency:** {{FLUENCY_RULE}}
-4.  **Summarization:** {{SUMMARIZATION_RULE}}
-5.  **Formatting:** Provide continuous text. Preserve original paragraph spacing.
-6.  **Terminology:** Use consistent medical terminology (e.g., according to RSNA RadLex).
-7.  **Logical Errors:** If you find contradictions, mark them e.g.: [CONTRADICTION].
+3.  **Abbreviations & Terms:** Keep all abbreviations exactly as dictated (e.g., "CT", "CTA", "MR", "XR") — do not expand them to full form. Do not add parenthetical translations or explanations to established loan terms (e.g., "splenorenal shunt"). Preserve image/slice-location references EXACTLY in the dictated format, e.g. "(im91 se3)" — do not remove or relocate them, do not add dots, commas, or spaces inside (do not change to "im. 91, se. 3"), and do not separate "im"/"se" from their numbers.
+4.  **Negation & Qualifiers:** Prefer concise negations; do not add hedging qualifiers that were not dictated (e.g., "clear", "obvious").
+5.  **Severity & Interpretation (IMPORTANT — SAFETY):** Do not introduce severity qualifiers (e.g., "advanced", "significant", "marked") or interpretations that are not present in the findings. In the conclusion, use exactly the same severity wording as in the body.
+6.  **Language Fluency:** {{FLUENCY_RULE}}
+7.  **Summarization:** {{SUMMARIZATION_RULE}}
+8.  **Formatting:** Provide continuous text. Preserve original paragraph spacing.
+9.  **Terminology:** Use consistent medical terminology (e.g., according to RSNA RadLex).
+10. **Logical Errors:** If you find contradictions, mark them e.g.: [CONTRADICTION].
 
 **Oncological Analysis:**
 1.  **Detail Level:** {{ONCOLOGY_DETAIL_RULE}}{{RECIST_RULE}}{{TNM_RULE}}
@@ -168,11 +177,14 @@ const promptTemplates = {
 **Allgemeine Regeln:**
 1.  **Korrekturen:** Korrigieren Sie Interpunktions-, Grammatik- und Stilfehler.
 2.  **Kein Markdown:** Verwenden Sie keine Markdown-Formatierung wie Fett- oder Kursivschrift. Geben Sie nur reinen Text zurück.
-3.  **Sprachflüssigkeit:** {{FLUENCY_RULE}}
-4.  **Zusammenfassung:** {{SUMMARIZATION_RULE}}
-5.  **Formatierung:** Liefern Sie einen fortlaufenden Text. Behalten Sie die ursprünglichen Absatzabstände bei.
-6.  **Terminologie:** Verwenden Sie eine konsistente medizinische Terminologie (z. B. gemäß RSNA RadLex).
-7.  **Logische Fehler:** Wenn Sie Widersprüche finden, markieren Sie diese z.B.: [WIDERSPRUCH].
+3.  **Abkürzungen & Begriffe:** Behalten Sie alle Abkürzungen genau wie diktiert bei (z. B. "CT", "CT-Angiographie", "MRT", "Röntgen") — schreiben Sie sie nicht aus. Fügen Sie etablierten Lehnbegriffen keine Übersetzungen oder Erläuterungen in Klammern hinzu (z. B. "splenorenaler Shunt"). Behalten Sie Bild-/Schichtangaben EXAKT im diktierten Format bei, z. B. "(im91 se3)" — entfernen oder verschieben Sie sie nicht, fügen Sie innerhalb keine Punkte, Kommas oder Leerzeichen hinzu (ändern Sie nicht zu "im. 91, se. 3") und trennen Sie "im"/"se" nicht von den Ziffern.
+4.  **Verneinung & Qualifizierer:** Bevorzugen Sie knappe Verneinungen; fügen Sie keine abschwächenden Qualifizierer hinzu, die nicht diktiert wurden (z. B. "deutlich", "eindeutig").
+5.  **Schweregrad & Interpretation (WICHTIG — SICHERHEIT):** Führen Sie keine Schweregrad-Qualifizierer (z. B. "fortgeschritten", "signifikant", "ausgeprägt") oder Interpretationen ein, die nicht in den Befunden enthalten sind. Verwenden Sie in der Schlussfolgerung exakt dieselbe Schweregrad-Wortwahl wie im Befund.
+6.  **Sprachflüssigkeit:** {{FLUENCY_RULE}}
+7.  **Zusammenfassung:** {{SUMMARIZATION_RULE}}
+8.  **Formatierung:** Liefern Sie einen fortlaufenden Text. Behalten Sie die ursprünglichen Absatzabstände bei.
+9.  **Terminologie:** Verwenden Sie eine konsistente medizinische Terminologie (z. B. gemäß RSNA RadLex).
+10. **Logische Fehler:** Wenn Sie Widersprüche finden, markieren Sie diese z.B.: [WIDERSPRUCH].
 
 **Onkologische Analyse:**
 1.  **Detailebene:** {{ONCOLOGY_DETAIL_RULE}}{{RECIST_RULE}}{{TNM_RULE}}

@@ -42,7 +42,7 @@ const initialSettingsData: SettingsData = {
             name: 'Google Gemini',
             type: 'gemini' as const,
             apiKey: '',
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.5-flash',
             enabled: true
         }],
         defaultProvider: 'gemini-default',
