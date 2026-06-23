@@ -23,6 +23,7 @@ import PrintablePropertyReport from './property-detail/PrintablePropertyReport';
 import { v4 as uuidv4 } from 'uuid';
 import { PrintIcon, ExportIcon, ImportIcon, TrashIcon } from './property-detail/Icons';
 import { findDuplicatesWithNew, findDuplicates, type DuplicateGroup } from '../lib/duplicateDetection';
+import { openDocument } from '../lib/documents';
 import { classifyExpenseTransactions, calcEicrNextDue, calcGasSafetyNextDue } from '../lib/transactionClassifier';
 import type { ExtractedMortgageData, ExtractedTitleData } from '../lib/extractPropertyData';
 
@@ -584,9 +585,14 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                             {typeof property.disposal.amount === 'number' ? ` for ${property.disposal.currency || ''} ${property.disposal.amount.toLocaleString()}` : ''}
                             {property.disposal.notes ? ` — ${property.disposal.notes}` : ''}
                         </span>
-                        {onRestore && (
-                            <button onClick={onRestore} className="flex-shrink-0 px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">Restore</button>
-                        )}
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {property.disposal.document && (
+                                <button onClick={() => openDocument(property.disposal!.document)} className="px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">View confirmation</button>
+                            )}
+                            {onRestore && (
+                                <button onClick={onRestore} className="px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">Restore</button>
+                            )}
+                        </div>
                     </div>
                 )}
 

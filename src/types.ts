@@ -402,6 +402,7 @@ export interface Disposal {
     amount?: number;     // sale price / proceeds
     currency?: string;
     notes?: string;
+    document?: Document; // sale / transfer confirmation PDF
     archivedAt: string;  // ISO timestamp when marked
 }
 
