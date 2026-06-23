@@ -556,7 +556,7 @@ export interface ShoppingItem {
     notes?: string;
 }
 
-export type Page = 'launcher' | 'claude' | 'properties' | 'insurance' | 'general' | 'invoices' | 'vehicles' | 'contracts' | 'radiology' | 'dictation' | 'correspondence';
+export type Page = 'launcher' | 'claude' | 'properties' | 'insurance' | 'general' | 'invoices' | 'vehicles' | 'contracts' | 'radiology' | 'dictation' | 'correspondence' | 'documents';
 
 /** Standalone correspondence store — not tied to any property. */
 export interface CorrespondenceStore {

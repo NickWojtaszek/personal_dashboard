@@ -32,6 +32,7 @@ const ContractDetailPage = lazy(() => import('./components/ContractDetailPage'))
 const RadiologyTemplatesPage = lazy(() => import('./components/RadiologyTemplatesPage'));
 const DictationPage = lazy(() => import('./components/DictationPage'));
 const CorrespondencePage = lazy(() => import('./components/CorrespondencePage'));
+const DocumentsPage = lazy(() => import('./components/DocumentsPage'));
 
 const PageLoading = () => (
     <div className="flex items-center justify-center py-24">
@@ -916,6 +917,14 @@ const App: React.FC = () => {
                 return <CorrespondencePage
                             store={correspondenceStore}
                             onSave={setCorrespondenceStore}
+                        />;
+            case 'documents':
+                return <DocumentsPage
+                            properties={properties}
+                            insurancePolicies={insurancePolicies}
+                            invoices={invoices}
+                            vehicles={vehicles}
+                            contracts={contracts}
                         />;
             case 'radiology':
                 return (
