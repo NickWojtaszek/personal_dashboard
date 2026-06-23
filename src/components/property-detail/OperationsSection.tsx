@@ -38,7 +38,7 @@ const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
     <input {...props} className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition" />
 );
 
-import { arrayBufferToBase64 } from '../../lib/documents';
+import { fileToDocument } from '../../lib/documents';
 
 const OperationsSection: React.FC<OperationsSectionProps> = ({ property, isEditing, onSetEditing, onSave, onCancel }) => {
     const [editedAgreements, setEditedAgreements] = useState<TenancyAgreement[]>([]);
@@ -84,9 +84,7 @@ const OperationsSection: React.FC<OperationsSectionProps> = ({ property, isEditi
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             if (file.type === 'application/pdf') {
-                const arrayBuffer = await file.arrayBuffer();
-                const base64Data = arrayBufferToBase64(arrayBuffer);
-                const newDocument: Document = { name: file.name, url: '#', data: base64Data, mimeType: file.type };
+                const newDocument = await fileToDocument(file);
                 setEditedAgreements(prev => prev.map(a => a.id === agreementId ? { ...a, document: newDocument } : a));
             } else {
                 alert('Please upload a valid PDF file.');

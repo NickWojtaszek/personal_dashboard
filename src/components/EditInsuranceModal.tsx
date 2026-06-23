@@ -27,7 +27,7 @@ const Label: React.FC<{ htmlFor?: string, children: React.ReactNode }> = ({ html
     <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">{children}</label>
 );
 
-import { arrayBufferToBase64 } from '../lib/documents';
+import { fileToDocument } from '../lib/documents';
 
 const EditInsuranceModal: React.FC<EditInsuranceModalProps> = ({ policy, onSave, onClose, allGroups, onGroupsChange }) => {
     const [formData, setFormData] = useState(policy);
@@ -99,14 +99,7 @@ const EditInsuranceModal: React.FC<EditInsuranceModalProps> = ({ policy, onSave,
         
         let documentData = formData.document;
         if (file) {
-            const arrayBuffer = await file.arrayBuffer();
-            const base64Data = arrayBufferToBase64(arrayBuffer);
-            documentData = {
-                name: file.name,
-                url: '#',
-                data: base64Data,
-                mimeType: file.type,
-            };
+            documentData = await fileToDocument(file);
         } else if (!filePreviewName) {
             documentData = undefined;
         }

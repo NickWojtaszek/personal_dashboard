@@ -34,4 +34,17 @@ export async function fileToDocument(file: File, overrides?: Partial<Document>):
   };
 }
 
+/**
+ * Build a Blob URL for a document's inline base64 data (for inline previews,
+ * e.g. an <iframe src>). The caller owns the URL and MUST revoke it with
+ * URL.revokeObjectURL when done. Returns null if the document has no data.
+ */
+export function documentToBlobUrl(doc?: Document): string | null {
+  if (!doc?.data || !doc.mimeType) return null;
+  const byteChars = atob(doc.data);
+  const bytes = new Uint8Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i++) bytes[i] = byteChars.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: doc.mimeType }));
+}
+
 export { openDocument } from './openDocument';

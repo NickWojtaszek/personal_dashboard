@@ -45,7 +45,7 @@ const Label: React.FC<{ htmlFor?: string, children: React.ReactNode }> = ({ html
     <label htmlFor={htmlFor} className="block text-xs font-medium text-slate-600 dark:text-gray-300 mb-1">{children}</label>
 );
 
-import { arrayBufferToBase64 } from '../../lib/documents';
+import { fileToDocument } from '../../lib/documents';
 
 const ComplianceSection: React.FC<ComplianceSectionProps> = ({ property, isEditing, onSetEditing, onSave, onCancel, linkedInsurance }) => {
     const [editedData, setEditedData] = useState<PropertyInfo>(property);
@@ -88,8 +88,7 @@ const ComplianceSection: React.FC<ComplianceSectionProps> = ({ property, isEditi
     const handleEicrFileChange = async (e: React.ChangeEvent<HTMLInputElement>, checkId: string) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const base64Data = arrayBufferToBase64(await file.arrayBuffer());
-            const newDoc = { name: file.name, url: '#', data: base64Data, mimeType: file.type };
+            const newDoc = await fileToDocument(file);
             handleNestedChange('operations.compliance.eicr.checks', (editedData.operations?.compliance?.eicr?.checks || []).map(c => c.id === checkId ? { ...c, document: newDoc } : c));
         }
     };
@@ -101,8 +100,7 @@ const ComplianceSection: React.FC<ComplianceSectionProps> = ({ property, isEditi
     const handleGasFileChange = async (e: React.ChangeEvent<HTMLInputElement>, checkId: string) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const base64Data = arrayBufferToBase64(await file.arrayBuffer());
-            const newDoc = { name: file.name, url: '#', data: base64Data, mimeType: file.type };
+            const newDoc = await fileToDocument(file);
             handleNestedChange('operations.compliance.gasSafety.checks', (editedData.operations?.compliance?.gasSafety?.checks || []).map(c => c.id === checkId ? { ...c, document: newDoc } : c));
         }
     };
@@ -114,8 +112,7 @@ const ComplianceSection: React.FC<ComplianceSectionProps> = ({ property, isEditi
     const handleInsuranceFileChange = async (e: React.ChangeEvent<HTMLInputElement>, policyId: string) => {
          if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const base64Data = arrayBufferToBase64(await file.arrayBuffer());
-            const newDoc = { name: file.name, url: '#', data: base64Data, mimeType: file.type };
+            const newDoc = await fileToDocument(file);
             handleNestedChange('operations.compliance.insurance.policies', (editedData.operations?.compliance?.insurance?.policies || []).map(p => p.id === policyId ? { ...p, document: newDoc } : p));
         }
     };

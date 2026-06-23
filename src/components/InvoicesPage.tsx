@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import type { InvoiceInfo } from '../types';
+import { documentToBlobUrl, openDocument } from '../lib/documents';
 import InvoiceTable from './InvoiceGrid';
 import { exportToGoogleSheets, isGoogleSheetsConfigured } from '../lib/googleSheets';
 import Button from './ui/Button';
@@ -214,9 +215,14 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({
     }, [filteredInvoices]);
 
     const previewInvoice = previewInvoiceId ? invoices.find(i => i.id === previewInvoiceId) : null;
-    const previewDataUrl = previewInvoice?.document?.data && previewInvoice.document.mimeType
-        ? `data:${previewInvoice.document.mimeType};base64,${previewInvoice.document.data}`
-        : null;
+
+    // Build a Blob URL for the inline preview and revoke it when the preview changes/unmounts.
+    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    useEffect(() => {
+        const url = documentToBlobUrl(previewInvoice?.document);
+        setPreviewUrl(url);
+        return () => { if (url) URL.revokeObjectURL(url); };
+    }, [previewInvoiceId, previewInvoice?.document?.data, previewInvoice?.document?.mimeType]);
 
     const handlePreview = (id: string) => {
         const invoice = invoices.find(i => i.id === id);
@@ -296,7 +302,7 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({
             </div>
 
             {/* Content card */}
-            <div className={`grid gap-6 ${previewDataUrl ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-6 ${previewUrl ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
                     {/* Sheets export status */}
                     {sheetsExporting && (
@@ -393,7 +399,7 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({
                 </div>
 
                 {/* Preview panel */}
-                {previewDataUrl && previewInvoice && (
+                {previewUrl && previewInvoice && (
                     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col lg:sticky lg:top-24" style={{ height: 'calc(100vh - 8rem)' }}>
                         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
                             <div className="min-w-0">
@@ -401,11 +407,11 @@ const InvoicesPage: React.FC<InvoicesPageProps> = ({
                                 <p className="text-xs text-slate-500 dark:text-gray-400">{previewInvoice.document?.name}</p>
                             </div>
                             <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                                <button onClick={() => window.open(previewDataUrl, '_blank')} className="p-1.5 rounded-lg text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="Open in new tab"><ExpandIcon /></button>
+                                <button onClick={() => openDocument(previewInvoice.document)} className="p-1.5 rounded-lg text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="Open in new tab"><ExpandIcon /></button>
                                 <button onClick={() => setPreviewInvoiceId(null)} className="p-1.5 rounded-lg text-slate-500 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors" title="Close preview"><CloseIcon /></button>
                             </div>
                         </div>
-                        <iframe src={previewDataUrl} className="flex-1 w-full" title="Invoice PDF Preview" />
+                        <iframe src={previewUrl ?? undefined} className="flex-1 w-full" title="Invoice PDF Preview" />
                     </div>
                 )}
             </div>

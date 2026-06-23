@@ -18,7 +18,7 @@ const DocumentTextIcon = () => <svg xmlns="http://www.w3.org/2000/svg" fill="non
 const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition" />;
 const Label = (props: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props} className="block text-sm font-medium text-slate-600 dark:text-gray-300 mb-1" />;
 
-import { arrayBufferToBase64 } from '../lib/documents';
+import { fileToDocument } from '../lib/documents';
 
 const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({ invoice, onSave, onClose, allGroups, onGroupsChange, allLocations }) => {
     const [formData, setFormData] = useState<InvoiceInfo>(invoice);
@@ -87,14 +87,7 @@ const EditInvoiceModal: React.FC<EditInvoiceModalProps> = ({ invoice, onSave, on
         
         let documentData = formData.document;
         if (file) {
-            const arrayBuffer = await file.arrayBuffer();
-            const base64Data = arrayBufferToBase64(arrayBuffer);
-            documentData = {
-                name: file.name,
-                url: '#',
-                data: base64Data,
-                mimeType: file.type,
-            };
+            documentData = await fileToDocument(file);
         } else if (!filePreviewName) {
             documentData = undefined;
         }
