@@ -12,6 +12,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
 import * as pdfjs from 'pdfjs-dist';
 import type { Document } from '../types';
+import { arrayBufferToBase64 } from './documents';
 
 // Configure PDF.js worker (same pattern used across the app)
 if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
@@ -23,14 +24,8 @@ if (typeof window !== 'undefined' && !pdfjs.GlobalWorkerOptions.workerSrc) {
 
 export { Type };
 
-export function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
+// Re-exported from the shared documents helper so existing importers keep working.
+export { arrayBufferToBase64 };
 
 /** Convert a File to both extracted text and a storable Document. */
 export async function readPdfFile(file: File): Promise<{ text: string; document: Document }> {

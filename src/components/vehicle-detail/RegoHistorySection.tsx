@@ -1,5 +1,6 @@
 import React from 'react';
 import type { RegistrationHistoryEntry } from '../../types';
+import { openDocument } from '../../lib/documents';
 
 const CURRENCY_SYMBOLS: Record<string, string> = { GBP: '\u00a3', USD: '$', AUD: 'A$', EUR: '\u20ac', PLN: 'z\u0142' };
 
@@ -78,10 +79,7 @@ const RegoHistorySection: React.FC<RegoHistorySectionProps> = ({ history, curren
                             <div className="flex items-center gap-3 mt-2">
                                 {entry.document?.data && (
                                     <button
-                                        onClick={() => {
-                                            const dataUrl = `data:${entry.document!.mimeType || 'application/pdf'};base64,${entry.document!.data}`;
-                                            window.open(dataUrl, '_blank');
-                                        }}
+                                        onClick={() => openDocument(entry.document)}
                                         className="inline-flex items-center gap-1 text-xs font-medium text-brand-primary hover:underline"
                                     >
                                         <DocIcon /> View Renewal PDF

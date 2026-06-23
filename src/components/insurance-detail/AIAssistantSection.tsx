@@ -39,15 +39,7 @@ const insuranceSchema = {
     },
 };
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
+import { arrayBufferToBase64 } from '../../lib/documents';
 
 const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted, pendingFile, onPendingFileConsumed }) => {
     const [file, setFile] = useState<File | null>(null);

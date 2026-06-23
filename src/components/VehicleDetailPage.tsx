@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { VehicleInfo, Document } from '../types';
+import { openDocument } from '../lib/documents';
 import VehicleInfoSection from './vehicle-detail/VehicleInfoSection';
 import RegoCostsSection from './vehicle-detail/RegoCostsSection';
 import RegoHistorySection from './vehicle-detail/RegoHistorySection';
@@ -94,10 +95,7 @@ const VehicleDetailPage: React.FC<VehicleDetailPageProps> = ({ vehicle, onBack, 
     };
 
     const handleViewDocument = (doc?: Document) => {
-        if (doc?.data) {
-            const dataUrl = `data:${doc.mimeType || 'application/pdf'};base64,${doc.data}`;
-            window.open(dataUrl, '_blank');
-        }
+        openDocument(doc);
     };
 
     // Compute status

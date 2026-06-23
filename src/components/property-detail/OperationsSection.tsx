@@ -38,15 +38,7 @@ const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
     <input {...props} className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition" />
 );
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
+import { arrayBufferToBase64 } from '../../lib/documents';
 
 const OperationsSection: React.FC<OperationsSectionProps> = ({ property, isEditing, onSetEditing, onSave, onCancel }) => {
     const [editedAgreements, setEditedAgreements] = useState<TenancyAgreement[]>([]);

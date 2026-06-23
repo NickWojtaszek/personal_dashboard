@@ -581,14 +581,7 @@ async function extractPdfText(data: ArrayBuffer): Promise<string> {
     return text;
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
+import { arrayBufferToBase64 } from './documents';
 
 /**
  * Extract property data from a PDF File object.

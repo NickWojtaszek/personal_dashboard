@@ -41,6 +41,7 @@ const PageLoading = () => (
 import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, Page, CorrespondenceStore } from './types';
 import type { DueDateItem } from './components/general/dateUtils';
 import { loadAllItems, saveAllItems } from './lib/storage';
+import { openDocument } from './lib/documents';
 import { arrayMove } from '@dnd-kit/sortable';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -643,8 +644,7 @@ const App: React.FC = () => {
     const handleViewInvoicePdf = (invoiceId: string) => {
         const invoice = invoices.find(i => i.id === invoiceId);
         if (invoice?.document?.data && invoice.document.mimeType) {
-            const url = `data:${invoice.document.mimeType};base64,${invoice.document.data}`;
-            window.open(url, '_blank');
+            openDocument(invoice.document);
         } else {
             alert('No PDF attached to this invoice.');
         }

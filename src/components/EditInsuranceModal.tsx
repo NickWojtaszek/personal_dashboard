@@ -27,15 +27,7 @@ const Label: React.FC<{ htmlFor?: string, children: React.ReactNode }> = ({ html
     <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-600 dark:text-gray-300 mb-1">{children}</label>
 );
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
-    const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary);
-}
+import { arrayBufferToBase64 } from '../lib/documents';
 
 const EditInsuranceModal: React.FC<EditInsuranceModalProps> = ({ policy, onSave, onClose, allGroups, onGroupsChange }) => {
     const [formData, setFormData] = useState(policy);
