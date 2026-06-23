@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react';
 import type { PropertyCountry } from '../../types';
 import { MagicWandIcon, UploadCloudIcon, DocumentTextIcon, TrashIcon } from './Icons';
 import { extractFromFile, type ExtractedPropertyData } from '../../lib/extractPropertyData';
+import DocumentDropzone from '../DocumentDropzone';
 
 interface AIAssistantSectionProps {
     onDataExtracted: (data: ExtractedPropertyData) => void;
@@ -15,7 +16,6 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
 
     const handleFileChange = (files: FileList | null) => {
         if (files && files.length > 0) {
@@ -29,15 +29,6 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
         }
     };
 
-    const onDragEnter = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }, []);
-    const onDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }, []);
-    const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); }, []);
-    const onDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        handleFileChange(e.dataTransfer.files);
-    }, []);
 
     const handleExtract = async () => {
         if (!file) {
@@ -75,17 +66,19 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
                     Drop a **Tenancy Agreement**, **Rental Statement**, **Strata/Body Corporate Notice**, **Council Rates Notice**, **Mortgage Statement**, or **Title Search** PDF. The AI will extract key data, autofill the page, and store the document.
                 </p>
                 {!file ? (
-                     <label
-                        onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop}
-                        className={`flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-brand-primary bg-brand-primary/10' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                     <DocumentDropzone
+                        onFiles={handleFileChange}
+                        accept="application/pdf"
+                        className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer transition-colors"
+                        activeClassName="border-brand-primary bg-brand-primary/10"
+                        inactiveClassName="border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
                      >
                         <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
                             <UploadCloudIcon className="w-10 h-10 mb-3 text-slate-400" />
                             <p className="mb-2 text-sm text-slate-500 dark:text-gray-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
                             <p className="text-xs text-slate-500 dark:text-gray-400">PDF documents only</p>
                         </div>
-                        <input id="dropzone-file" type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileChange(e.target.files)} />
-                    </label>
+                    </DocumentDropzone>
                 ) : (
                     <div className="flex items-center justify-between w-full p-4 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                         <div className="flex items-center gap-3">

@@ -3,6 +3,7 @@ import type { VehicleInfo, Document } from '../../types';
 import { MagicWandIcon, UploadCloudIcon, DocumentTextIcon, TrashIcon } from '../insurance-detail/Icons';
 import { Type, extractFromPdf } from '../../lib/pdfExtraction';
 import type { RegoDocType } from '../NewRegistrationModal';
+import DocumentDropzone from '../DocumentDropzone';
 
 export interface RegoExtractedData extends Partial<VehicleInfo> {
     document?: Document;
@@ -65,7 +66,6 @@ const RegoAIAssistantSection: React.FC<RegoAIAssistantSectionProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
     const pendingFileProcessed = React.useRef(false);
 
     const shouldAutoExtract = React.useRef(false);
@@ -91,13 +91,6 @@ const RegoAIAssistantSection: React.FC<RegoAIAssistantSectionProps> = ({
         }
     };
 
-    const onDragEnter = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }, []);
-    const onDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }, []);
-    const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); }, []);
-    const onDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-        handleFileChange(e.dataTransfer.files);
-    }, []);
 
     const handleExtract = useCallback(async () => {
         if (!file) { setError("Please select a PDF file first."); return; }
@@ -197,17 +190,19 @@ ${pdfText}`;
 
                 {/* File drop zone */}
                 {!file ? (
-                    <label
-                        onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop}
-                        className={`flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-brand-primary bg-brand-primary/10' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                    <DocumentDropzone
+                        onFiles={handleFileChange}
+                        accept="application/pdf"
+                        className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed rounded-lg cursor-pointer transition-colors"
+                        activeClassName="border-brand-primary bg-brand-primary/10"
+                        inactiveClassName="border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
                     >
                         <div className="flex flex-col items-center justify-center py-4 text-center">
                             <UploadCloudIcon className="w-8 h-8 mb-2 text-slate-400" />
                             <p className="text-sm text-slate-500 dark:text-gray-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
                             <p className="text-xs text-slate-400 mt-1">PDF documents only</p>
                         </div>
-                        <input type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileChange(e.target.files)} />
-                    </label>
+                    </DocumentDropzone>
                 ) : (
                     <div className="flex items-center justify-between w-full p-4 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                         <div className="flex items-center gap-3">

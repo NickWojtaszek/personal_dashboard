@@ -40,13 +40,13 @@ const insuranceSchema = {
 };
 
 import { arrayBufferToBase64 } from '../../lib/documents';
+import DocumentDropzone from '../DocumentDropzone';
 
 const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted, pendingFile, onPendingFileConsumed }) => {
     const [file, setFile] = useState<File | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
     const pendingFileProcessed = React.useRef(false);
 
     // Auto-load pending file from new policy flow; extraction triggered via shouldAutoExtract ref
@@ -71,27 +71,6 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
             }
         }
     };
-
-    const onDragEnter = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(true);
-    }, []);
-    const onDragLeave = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-    }, []);
-    const onDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-    }, []);
-    const onDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragging(false);
-        handleFileChange(e.dataTransfer.files);
-    }, []);
 
     const handleExtract = useCallback(async () => {
         if (!file) {
@@ -203,17 +182,19 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
                     Drop a policy PDF below. The AI will read it, autofill the fields on this page, and store the PDF for you.
                 </p>
                 {!file ? (
-                     <label 
-                        onDragEnter={onDragEnter} onDragLeave={onDragLeave} onDragOver={onDragOver} onDrop={onDrop}
-                        className={`flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-brand-primary bg-brand-primary/10' : 'border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                     <DocumentDropzone
+                        onFiles={handleFileChange}
+                        accept="application/pdf"
+                        className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer transition-colors"
+                        activeClassName="border-brand-primary bg-brand-primary/10"
+                        inactiveClassName="border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
                      >
                         <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center">
                             <UploadCloudIcon className="w-10 h-10 mb-3 text-slate-400" />
                             <p className="mb-2 text-sm text-slate-500 dark:text-gray-400"><span className="font-semibold">Click to upload</span> or drag and drop</p>
                             <p className="text-xs text-slate-500 dark:text-gray-400">PDF documents only</p>
                         </div>
-                        <input id="dropzone-file" type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileChange(e.target.files)} />
-                    </label>
+                    </DocumentDropzone>
                 ) : (
                     <div className="flex items-center justify-between w-full p-4 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                         <div className="flex items-center gap-3">
