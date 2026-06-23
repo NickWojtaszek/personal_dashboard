@@ -50,6 +50,7 @@ export function parseAllDueDates(
     today.setHours(0, 0, 0, 0); // Normalize to start of day
 
     properties.forEach(prop => {
+        if (prop.disposal) return; // sold/disposed — no reminders
         if (prop.operations?.tenancy?.agreements && prop.operations.tenancy.agreements.length > 0) {
             const latestAgreement = [...prop.operations.tenancy.agreements]
                 .sort((a,b) => new Date(b.leaseEnd).getTime() - new Date(a.leaseEnd).getTime())[0];
@@ -83,6 +84,7 @@ export function parseAllDueDates(
     });
 
     insurancePolicies.forEach(policy => {
+        if (policy.status === 'Archived') return; // archived — no reminders
         // Use endDate (precise YYYY-MM-DD) if available, otherwise fall back to renewalDate (month/year)
         let dueDate: string | null = null;
         let subType: DueDateItemSubType = 'Policy End';
@@ -107,6 +109,7 @@ export function parseAllDueDates(
     });
 
     vehicles.forEach(vehicle => {
+        if (vehicle.disposal) return; // sold/disposed — no reminders
         if (vehicle.expiryDate) {
             allDates.push({
                 id: vehicle.id,
@@ -199,6 +202,7 @@ export function buildCostLineItems(
 
     // Insurance premiums
     insurancePolicies.forEach(policy => {
+        if (policy.status === 'Archived') return; // archived — no cost forecast
         if (typeof policy.premiumAmount !== 'number' || !policy.premiumAmount) return;
         const cur = policy.currency || 'GBP';
         let monthly: number;
@@ -223,6 +227,7 @@ export function buildCostLineItems(
 
     // Vehicle rego
     vehicles.forEach(vehicle => {
+        if (vehicle.disposal) return; // sold/disposed — no cost forecast
         if (typeof vehicle.totalAmount !== 'number' || !vehicle.totalAmount) return;
         const cur = vehicle.currency || 'AUD';
         const termMonths = vehicle.term ? (TERM_MONTHS[vehicle.term] || 6) : 6;
@@ -239,6 +244,7 @@ export function buildCostLineItems(
 
     // Property costs: mortgage, service charges, ground rent, council tax
     properties.forEach(prop => {
+        if (prop.disposal) return; // sold/disposed — no cost forecast
         const cur = 'GBP'; // properties are typically GBP in this app
 
         // Mortgage

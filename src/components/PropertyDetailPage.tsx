@@ -34,6 +34,8 @@ interface PropertyDetailPageProps {
     property: PropertyInfo;
     onBack: () => void;
     onSaveProperty: (property: PropertyInfo) => void;
+    onMarkSold?: () => void;
+    onRestore?: () => void;
     insurancePolicies?: InsuranceInfo[];
     scrollToSection?: string | null;
     onScrollComplete?: () => void;
@@ -60,7 +62,7 @@ interface ExtractedData {
 
 type ViewMode = 'details' | 'metrics' | 'correspondence' | 'threads';
 
-const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBack, onSaveProperty, insurancePolicies, scrollToSection, onScrollComplete }) => {
+const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBack, onSaveProperty, onMarkSold, onRestore, insurancePolicies, scrollToSection, onScrollComplete }) => {
     const [editingSection, setEditingSection] = useState<EditableSection>(null);
     const [modalConfig, setModalConfig] = useState<{ action: 'print' | 'export', title: string, buttonText: string } | null>(null);
     const [propertyToPrint, setPropertyToPrint] = useState<PropertyInfo | null>(null);
@@ -563,6 +565,11 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                             <ImportIcon />
                             Import Data
                         </button>
+                        {onMarkSold && !property.disposal && (
+                            <button onClick={onMarkSold} className="flex items-center gap-2 text-sm font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors p-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20">
+                                Mark as sold
+                            </button>
+                        )}
                         <button onClick={() => setShowResetConfirm(true)} className="flex items-center gap-2 text-sm font-semibold text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
                             <TrashIcon />
                             Reset Property
@@ -570,10 +577,26 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                     </div>
                 </div>
 
+                {property.disposal && (
+                    <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm">
+                        <span className="text-amber-800 dark:text-amber-300">
+                            {property.disposal.type} on {new Date(property.disposal.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            {typeof property.disposal.amount === 'number' ? ` for ${property.disposal.currency || ''} ${property.disposal.amount.toLocaleString()}` : ''}
+                            {property.disposal.notes ? ` — ${property.disposal.notes}` : ''}
+                        </span>
+                        {onRestore && (
+                            <button onClick={onRestore} className="flex-shrink-0 px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">Restore</button>
+                        )}
+                    </div>
+                )}
+
                 <header className="pb-4 border-b border-slate-200 dark:border-slate-700">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
-                            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{property.name}</h1>
+                            <div className="flex items-center gap-3">
+                                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{property.name}</h1>
+                                {property.disposal && <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">{property.disposal.type}</span>}
+                            </div>
                             <p className="text-lg text-slate-500 dark:text-gray-400 mt-1">{property.location}</p>
                         </div>
                         <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-1">

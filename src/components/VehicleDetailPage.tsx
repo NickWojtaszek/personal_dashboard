@@ -17,6 +17,8 @@ interface VehicleDetailPageProps {
     onBack: () => void;
     onSaveVehicle: (vehicle: VehicleInfo) => void;
     onDeleteVehicle?: (id: string) => void;
+    onMarkSold?: () => void;
+    onRestore?: () => void;
     pendingFile?: File | null;
     pendingDocType?: RegoDocType;
     onPendingFileConsumed?: () => void;
@@ -24,7 +26,7 @@ interface VehicleDetailPageProps {
     onScrollComplete?: () => void;
 }
 
-const VehicleDetailPage: React.FC<VehicleDetailPageProps> = ({ vehicle, onBack, onSaveVehicle, onDeleteVehicle, pendingFile, pendingDocType, onPendingFileConsumed, scrollToSection, onScrollComplete }) => {
+const VehicleDetailPage: React.FC<VehicleDetailPageProps> = ({ vehicle, onBack, onSaveVehicle, onDeleteVehicle, onMarkSold, onRestore, pendingFile, pendingDocType, onPendingFileConsumed, scrollToSection, onScrollComplete }) => {
     const [editingSection, setEditingSection] = useState<EditableVehicleSection>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -149,6 +151,11 @@ const VehicleDetailPage: React.FC<VehicleDetailPageProps> = ({ vehicle, onBack, 
                             <DocumentIcon /> View PDF
                         </button>
                     )}
+                    {onMarkSold && !vehicle.disposal && (
+                        <button onClick={onMarkSold} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-sm font-medium hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors">
+                            Mark as sold
+                        </button>
+                    )}
                     {onDeleteVehicle && (
                         <button onClick={handleDelete} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${confirmDelete ? 'bg-red-600 text-white' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'}`}>
                             <TrashIcon />
@@ -158,10 +165,27 @@ const VehicleDetailPage: React.FC<VehicleDetailPageProps> = ({ vehicle, onBack, 
                 </div>
             </div>
 
+            {vehicle.disposal && (
+                <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm">
+                    <span className="text-amber-800 dark:text-amber-300">
+                        {vehicle.disposal.type === 'WrittenOff' ? 'Written off' : vehicle.disposal.type} on {new Date(vehicle.disposal.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        {typeof vehicle.disposal.amount === 'number' ? ` for ${vehicle.disposal.currency || ''} ${vehicle.disposal.amount.toLocaleString()}` : ''}
+                        {vehicle.disposal.notes ? ` — ${vehicle.disposal.notes}` : ''}
+                    </span>
+                    {onRestore && (
+                        <button onClick={onRestore} className="flex-shrink-0 px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">Restore</button>
+                    )}
+                </div>
+            )}
+
             <header className="pb-4 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-3 mb-2">
                     <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{vehicle.name}</h1>
-                    <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${statusColor}`}>{statusText}</span>
+                    {vehicle.disposal ? (
+                        <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">{vehicle.disposal.type === 'WrittenOff' ? 'Written off' : vehicle.disposal.type}</span>
+                    ) : (
+                        <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${statusColor}`}>{statusText}</span>
+                    )}
                 </div>
                 <div className="flex items-center gap-4 text-slate-500 dark:text-gray-400">
                     <span className="text-lg font-mono font-bold tracking-wider">{vehicle.rego}</span>

@@ -393,6 +393,18 @@ export interface ConversationThread {
 
 export type PropertyCountry = 'AU' | 'UK' | 'US' | 'NZ' | 'PL';
 
+/** Disposal record for an asset that has left the portfolio (sold / written off /
+ *  transferred / discharged). Presence of this object marks the asset as archived;
+ *  the record and all its history/documents are retained. */
+export interface Disposal {
+    type: 'Sold' | 'WrittenOff' | 'Transferred' | 'Discharged';
+    date: string;        // YYYY-MM-DD — when sold/disposed
+    amount?: number;     // sale price / proceeds
+    currency?: string;
+    notes?: string;
+    archivedAt: string;  // ISO timestamp when marked
+}
+
 export interface PropertyInfo {
     id: string;
     name: string;
@@ -410,6 +422,7 @@ export interface PropertyInfo {
     managementStructure?: PropertyManagementStructure;
     mortgage?: PropertyMortgage;
     title?: PropertyTitle;
+    disposal?: Disposal;
     notes?: string;
     correspondence?: CorrespondenceItem[];
     gmailSync?: GmailSyncConfig;
@@ -445,7 +458,7 @@ export interface InsuranceInfo {
     coverageAmount?: number;
     premiumAmount?: number;
     paymentFrequency?: 'Monthly' | 'Annually' | 'Other';
-    status?: 'Active' | 'Expired' | 'Pending';
+    status?: 'Active' | 'Expired' | 'Pending' | 'Archived';
     startDate?: string;
     endDate?: string;
     policyholder?: string;
@@ -540,6 +553,7 @@ export interface VehicleInfo {
     startDate?: string;  // YYYY-MM-DD - when current rego period started
     // Status
     status?: 'Current' | 'Expired' | 'Due Soon';
+    disposal?: Disposal;
     notes?: string;
     document?: Document;           // legacy / fallback
     renewalDocument?: Document;    // renewal notice PDF

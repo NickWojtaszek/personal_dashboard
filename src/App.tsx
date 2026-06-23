@@ -39,7 +39,8 @@ const PageLoading = () => (
         <div className="text-sm text-slate-500 dark:text-slate-400">Loading\u2026</div>
     </div>
 );
-import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, Page, CorrespondenceStore } from './types';
+import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, Page, CorrespondenceStore, Disposal } from './types';
+import DisposeAssetModal from './components/DisposeAssetModal';
 import type { DueDateItem } from './components/general/dateUtils';
 import { loadAllItems, saveAllItems } from './lib/storage';
 import { openDocument } from './lib/documents';
@@ -723,6 +724,30 @@ const App: React.FC = () => {
         setSelectedVehicleId(null);
     }, []);
 
+    // --- Asset disposal (sell / dispose) ---
+    const [disposing, setDisposing] = useState<{ kind: 'vehicle' | 'property'; id: string } | null>(null);
+
+    const handleDisposeVehicle = useCallback((id: string, disposal: Disposal) => {
+        setVehicles(prev => prev.map(v => v.id === id ? { ...v, disposal } : v));
+        setDisposing(null);
+    }, []);
+
+    const handleRestoreVehicle = useCallback((id: string) => {
+        setVehicles(prev => prev.map(v => v.id === id ? { ...v, disposal: undefined } : v));
+    }, []);
+
+    const handleDisposeProperty = useCallback((id: string, disposal: Disposal, archivePolicyIds: string[]) => {
+        setProperties(prev => prev.map(p => p.id === id ? { ...p, disposal } : p));
+        if (archivePolicyIds.length > 0) {
+            setInsurancePolicies(prev => prev.map(p => archivePolicyIds.includes(p.id) ? { ...p, status: 'Archived' as const } : p));
+        }
+        setDisposing(null);
+    }, []);
+
+    const handleRestoreProperty = useCallback((id: string) => {
+        setProperties(prev => prev.map(p => p.id === id ? { ...p, disposal: undefined } : p));
+    }, []);
+
     const handleClearAllVehicles = useCallback(() => {
         setVehicles([]);
         setSelectedVehicleId(null);
@@ -811,6 +836,8 @@ const App: React.FC = () => {
                                 property={selectedProperty}
                                 onBack={() => { setSelectedPropertyId(null); setScrollToSection(null); }}
                                 onSaveProperty={handleSaveProperty}
+                                onMarkSold={() => setDisposing({ kind: 'property', id: selectedProperty.id })}
+                                onRestore={() => handleRestoreProperty(selectedProperty.id)}
                                 insurancePolicies={insurancePolicies}
                                 scrollToSection={scrollToSection}
                                 onScrollComplete={() => setScrollToSection(null)}
@@ -873,6 +900,8 @@ const App: React.FC = () => {
                                 onBack={() => { setSelectedVehicleId(null); setScrollToSection(null); }}
                                 onSaveVehicle={handleSaveVehicle}
                                 onDeleteVehicle={handleDeleteVehicle}
+                                onMarkSold={() => setDisposing({ kind: 'vehicle', id: selectedVehicle.id })}
+                                onRestore={() => handleRestoreVehicle(selectedVehicle.id)}
                                 pendingFile={pendingVehicleFile}
                                 pendingDocType={pendingVehicleDocType}
                                 onPendingFileConsumed={() => { setPendingVehicleFile(null); }}
@@ -1051,6 +1080,30 @@ const App: React.FC = () => {
             {isSupabaseEnabled() && (
                 <AllowedUsersModal open={showUsersModal} onClose={() => setShowUsersModal(false)} />
             )}
+            {disposing && (() => {
+                if (disposing.kind === 'vehicle') {
+                    const v = vehicles.find(x => x.id === disposing.id);
+                    if (!v) return null;
+                    return <DisposeAssetModal
+                        assetKind="vehicle"
+                        assetLabel={`${v.name} (${v.rego})`}
+                        currency={v.currency}
+                        onConfirm={(disposal) => handleDisposeVehicle(v.id, disposal)}
+                        onClose={() => setDisposing(null)}
+                    />;
+                }
+                const p = properties.find(x => x.id === disposing.id);
+                if (!p) return null;
+                const linked = insurancePolicies.filter(pl => pl.propertyId === p.id).map(pl => ({ id: pl.id, name: pl.name }));
+                return <DisposeAssetModal
+                    assetKind="property"
+                    assetLabel={p.name}
+                    currency="GBP"
+                    linkedPolicies={linked}
+                    onConfirm={(disposal, archiveIds) => handleDisposeProperty(p.id, disposal, archiveIds)}
+                    onClose={() => setDisposing(null)}
+                />;
+            })()}
             <BugNotes page={page} />
         </div>
     );

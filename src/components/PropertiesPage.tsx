@@ -29,7 +29,7 @@ const SORT_OPTIONS = [
 const PropertyListRow: React.FC<{ property: PropertyInfo; onSelect: (id: string) => void }> = ({ property, onSelect }) => (
     <button
         onClick={() => onSelect(property.id)}
-        className={`w-full text-left grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-slate-200 dark:hover:border-slate-600 ${getCountryBorder(property.country)}`}
+        className={`w-full text-left grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-slate-200 dark:hover:border-slate-600 ${getCountryBorder(property.country)} ${property.disposal ? 'opacity-60' : ''}`}
     >
         <div className="col-span-4 min-w-0">
             <p className="font-medium text-slate-800 dark:text-gray-200 truncate group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">
@@ -41,7 +41,8 @@ const PropertyListRow: React.FC<{ property: PropertyInfo; onSelect: (id: string)
         <div className="col-span-4 min-w-0">
             {property.address && <p className="text-sm text-slate-600 dark:text-gray-300 truncate">{property.address}</p>}
         </div>
-        <div className="col-span-4 flex justify-end gap-1 flex-wrap">
+        <div className="col-span-4 flex justify-end gap-1 flex-wrap items-center">
+            {property.disposal && <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-200">Sold</span>}
             {property.groups?.map(g => (
                 <span key={g} className="px-2 py-0.5 text-xs rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-gray-400">{g}</span>
             ))}
@@ -57,7 +58,10 @@ const PropertiesPage: React.FC<PropertiesPageProps> = ({
     const [selectedSort, setSelectedSort] = useState<SortOption>('name');
     const [selectedGroup, setSelectedGroup] = useState('All');
     const [viewMode, setViewMode] = useState<ViewMode>('list');
+    const [showSold, setShowSold] = useState(false);
     const importInputRef = useRef<HTMLInputElement>(null);
+
+    const soldCount = useMemo(() => properties.filter(p => p.disposal).length, [properties]);
 
     const handleImportFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -93,6 +97,10 @@ const PropertiesPage: React.FC<PropertiesPageProps> = ({
     const filteredProperties = useMemo(() => {
         let filtered = [...properties];
 
+        if (!showSold) {
+            filtered = filtered.filter(property => !property.disposal);
+        }
+
         if (selectedGroup !== 'All') {
             filtered = filtered.filter(property => property.groups?.includes(selectedGroup));
         }
@@ -121,7 +129,7 @@ const PropertiesPage: React.FC<PropertiesPageProps> = ({
                 default: return 0;
             }
         });
-    }, [properties, searchTerm, selectedSort, selectedGroup]);
+    }, [properties, searchTerm, selectedSort, selectedGroup, showSold]);
 
     const selectClasses = "bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition";
 
@@ -171,6 +179,12 @@ const PropertiesPage: React.FC<PropertiesPageProps> = ({
                             {SORT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                         </select>
                     </div>
+                    {soldCount > 0 && (
+                        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-gray-300 cursor-pointer mt-3">
+                            <input type="checkbox" checked={showSold} onChange={e => setShowSold(e.target.checked)} className="accent-brand-primary w-4 h-4" />
+                            Show sold ({soldCount})
+                        </label>
+                    )}
                 </div>
 
                 <div className="p-5">

@@ -35,7 +35,7 @@ const VehicleListRow: React.FC<{ vehicle: VehicleInfo; onSelect: (id: string) =>
     return (
         <button
             onClick={() => onSelect(vehicle.id)}
-            className={`w-full text-left grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-slate-200 dark:hover:border-slate-600 ${isExpired ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}
+            className={`w-full text-left grid grid-cols-12 gap-4 items-center px-4 py-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group border border-transparent hover:border-slate-200 dark:hover:border-slate-600 ${vehicle.disposal ? 'opacity-60' : isExpired ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}
         >
             <div className="col-span-3 min-w-0">
                 <p className="font-medium text-slate-800 dark:text-gray-200 truncate group-hover:text-brand-primary dark:group-hover:text-brand-secondary transition-colors">{vehicle.name}</p>
@@ -53,7 +53,9 @@ const VehicleListRow: React.FC<{ vehicle: VehicleInfo; onSelect: (id: string) =>
                 </p>
             </div>
             <div className="col-span-2 flex justify-end">
-                {isExpired ? (
+                {vehicle.disposal ? (
+                    <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-200">Sold</span>
+                ) : isExpired ? (
                     <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300">Expired</span>
                 ) : isDueSoon ? (
                     <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300">Due Soon</span>
@@ -74,9 +76,16 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({
     const [selectedGroup, setSelectedGroup] = useState('All');
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [confirmClear, setConfirmClear] = useState(false);
+    const [showSold, setShowSold] = useState(false);
+
+    const soldCount = useMemo(() => vehicles.filter(v => v.disposal).length, [vehicles]);
 
     const filteredVehicles = useMemo(() => {
         let filtered = [...vehicles];
+
+        if (!showSold) {
+            filtered = filtered.filter(vehicle => !vehicle.disposal);
+        }
 
         if (selectedGroup !== 'All') {
             filtered = filtered.filter(vehicle => vehicle.groups?.includes(selectedGroup));
@@ -101,7 +110,7 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({
                 default: return 0;
             }
         });
-    }, [vehicles, searchTerm, selectedSort, selectedGroup]);
+    }, [vehicles, searchTerm, selectedSort, selectedGroup, showSold]);
 
     const selectClasses = "bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition";
 
@@ -148,6 +157,13 @@ const VehiclesPage: React.FC<VehiclesPageProps> = ({
                             {SORT_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                         </select>
                     </div>
+
+                    {soldCount > 0 && (
+                        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-gray-300 cursor-pointer mt-3">
+                            <input type="checkbox" checked={showSold} onChange={e => setShowSold(e.target.checked)} className="accent-brand-primary w-4 h-4" />
+                            Show sold ({soldCount})
+                        </label>
+                    )}
 
                     {/* Clear All */}
                     {onClearAll && vehicles.length > 0 && (
