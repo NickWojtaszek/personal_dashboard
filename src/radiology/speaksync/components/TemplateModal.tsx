@@ -3,7 +3,8 @@ import type { Template, StudyType, Scenario } from '../types';
 import { useTranslations } from '../context/LanguageContext';
 import { useTemplate } from '../context/TemplateContext';
 import { useApp } from '../context/AppContext';
-import { analyzeTemplate, defaultValues, renderTemplate } from '../utils/templateMacros';
+import { analyzeTemplate, defaultValues } from '../utils/templateMacros';
+import TemplateMacroFill, { MacroPreview, MacroLegend } from './TemplateMacroFill';
 
 const TemplateModal: React.FC = () => {
   const { t } = useTranslations();
@@ -15,6 +16,7 @@ const TemplateModal: React.FC = () => {
   const [scenario, setScenario] = useState<Scenario>('');
   const [content, setContent] = useState('');
   const [availableScenarios, setAvailableScenarios] = useState<Scenario[]>([]);
+  const [view, setView] = useState<'edit' | 'test'>('edit');
 
   useEffect(() => {
     if (editingTemplate) {
@@ -28,6 +30,7 @@ const TemplateModal: React.FC = () => {
       setScenario('');
       setContent('');
     }
+    setView('edit');
   }, [editingTemplate, isOpen]);
   
   const templateData = { studyTypes, scenarios };
@@ -45,7 +48,7 @@ const TemplateModal: React.FC = () => {
 
   // Live macro preview (rendered with default values) — updates as you type.
   const macroControls = useMemo(() => analyzeTemplate(content), [content]);
-  const macroPreview = useMemo(() => renderTemplate(content, defaultValues(macroControls)), [content, macroControls]);
+  const macroDefaults = useMemo(() => defaultValues(macroControls), [macroControls]);
   const macroCounts = useMemo(() => {
     let fields = 0, choices = 0, blocks = 0;
     for (const c of macroControls) {
@@ -125,27 +128,46 @@ const TemplateModal: React.FC = () => {
                 </div>
             </div>
             <div>
-              <label htmlFor="content" className="block text-sm font-medium text-gray-300 mb-1">{t('templateModal.templateContent')}</label>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <textarea
-                  id="content"
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm h-[26rem] lg:h-[32rem] resize-y"
-                  placeholder={t('templateModal.templateContentPlaceholder')}
-                />
-                <div className="flex flex-col min-h-0">
-                  <div className="text-xs text-gray-400 mb-1">
-                    Live preview
-                    {macroControls.length > 0 && (
-                      <span className="ml-2 text-gray-500">
-                        {macroCounts.fields} field{macroCounts.fields !== 1 ? 's' : ''} · {macroCounts.choices} choice{macroCounts.choices !== 1 ? 's' : ''} · {macroCounts.blocks} toggle{macroCounts.blocks !== 1 ? 's' : ''} (defaults)
-                      </span>
-                    )}
-                  </div>
-                  <pre className="flex-1 whitespace-pre-wrap text-sm text-gray-200 bg-gray-900/60 border border-gray-700 rounded p-3 h-[26rem] lg:h-[32rem] overflow-y-auto font-sans leading-relaxed">{macroControls.length > 0 ? macroPreview : 'Add {{tokens}} to the template to see a filled-in preview here.'}</pre>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="content" className="block text-sm font-medium text-gray-300">{t('templateModal.templateContent')}</label>
+                <div className="flex items-center gap-0.5 p-0.5 bg-gray-900 rounded-md border border-gray-700">
+                  <button type="button" onClick={() => setView('edit')} className={`px-3 py-1 text-xs rounded transition-colors ${view === 'edit' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>Edit</button>
+                  <button type="button" onClick={() => setView('test')} className={`px-3 py-1 text-xs rounded transition-colors ${view === 'test' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200'}`}>Test fields{macroControls.length > 0 ? ` (${macroControls.length})` : ''}</button>
                 </div>
               </div>
+
+              {view === 'edit' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <textarea
+                    id="content"
+                    value={content}
+                    onChange={e => setContent(e.target.value)}
+                    className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm h-[26rem] lg:h-[32rem] resize-y"
+                    placeholder={t('templateModal.templateContentPlaceholder')}
+                  />
+                  <div className="flex flex-col min-h-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-400">
+                        Live preview
+                        {macroControls.length > 0 && (
+                          <span className="ml-2 text-gray-500">
+                            {macroCounts.fields}f · {macroCounts.choices}c · {macroCounts.blocks}t (defaults)
+                          </span>
+                        )}
+                      </span>
+                      {macroControls.length > 0 && <MacroLegend />}
+                    </div>
+                    <div className="flex-1 bg-gray-900/60 border border-gray-700 rounded p-3 h-[26rem] lg:h-[32rem] overflow-y-auto">
+                      <MacroPreview content={content} values={macroDefaults} />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[26rem] lg:h-[32rem] flex border border-gray-700 rounded-md bg-gray-900/40 overflow-hidden">
+                  <TemplateMacroFill content={content} />
+                </div>
+              )}
+
               <details className="mt-2 text-xs text-gray-400">
                 <summary className="cursor-pointer hover:text-gray-200 select-none">Macro syntax (optional — for clickable fill-in templates)</summary>
                 <div className="mt-2 grid sm:grid-cols-2 gap-x-4 gap-y-1 bg-gray-900/60 border border-gray-700 rounded p-2 font-mono">

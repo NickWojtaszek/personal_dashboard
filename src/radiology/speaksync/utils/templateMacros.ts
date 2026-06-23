@@ -120,3 +120,78 @@ export function renderTemplate(content: string, values: MacroValues): string {
     .replace(/ +([.,;:)])/g, '$1') // space before punctuation
     .trim();
 }
+
+// ---------------------------------------------------------------------------
+// Color-coded preview: render into typed segments so the UI can highlight
+// static text vs field values vs optional-block text.
+// ---------------------------------------------------------------------------
+
+export type SegmentKind = 'static' | 'field' | 'optional';
+export interface RenderSegment { text: string; kind: SegmentKind; }
+
+function pushSeg(segs: RenderSegment[], text: string, kind: SegmentKind): void {
+  if (!text) return;
+  const last = segs[segs.length - 1];
+  if (last && last.kind === kind) last.text += text;
+  else segs.push({ text, kind });
+}
+
+// Segment a piece of text that may contain {{...}} fields; literal parts get `literalKind`.
+function segmentFields(text: string, values: MacroValues, literalKind: SegmentKind, segs: RenderSegment[]): void {
+  let last = 0;
+  let m: RegExpExecArray | null;
+  FIELD_RE.lastIndex = 0;
+  while ((m = FIELD_RE.exec(text)) !== null) {
+    if (m.index > last) pushSeg(segs, text.slice(last, m.index), literalKind);
+    const f = parseField(m[1]);
+    const v = values.fields[f.name];
+    let val: string;
+    if (v !== undefined && v !== '') val = v;
+    else if (f.kind === 'text') val = f.default;
+    else val = f.options[0] ?? '';
+    pushSeg(segs, val, 'field');
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) pushSeg(segs, text.slice(last), literalKind);
+}
+
+function cleanupSegments(segs: RenderSegment[]): RenderSegment[] {
+  for (const s of segs) {
+    s.text = s.text.replace(/ {2,}/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
+  }
+  for (let i = 0; i < segs.length - 1; i++) {
+    if (/ $/.test(segs[i].text) && /^ /.test(segs[i + 1].text)) {
+      segs[i + 1].text = segs[i + 1].text.replace(/^ +/, '');
+    }
+    if (/ $/.test(segs[i].text) && /^[.,;:)]/.test(segs[i + 1].text)) {
+      segs[i].text = segs[i].text.replace(/ +$/, '');
+    }
+  }
+  return segs.filter(s => s.text.length > 0);
+}
+
+/** Render to typed segments (for color-coded preview). Field values are 'field',
+ *  text inside optional/toggle blocks is 'optional', everything else 'static'. */
+export function renderSegments(content: string, values: MacroValues): RenderSegment[] {
+  const segs: RenderSegment[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  BLOCK_RE.lastIndex = 0;
+  while ((m = BLOCK_RE.exec(content)) !== null) {
+    if (m.index > last) segmentFields(content.slice(last, m.index), values, 'static', segs);
+    const name = m[1].trim();
+    const body = m[2];
+    const on = values.blocks[name] !== false;
+    let chosen = '';
+    if (body.includes('||')) {
+      const [onText, offText] = body.split('||');
+      chosen = (on ? onText : (offText ?? '')).trim();
+    } else {
+      chosen = on ? body.trim() : '';
+    }
+    if (chosen) segmentFields(chosen, values, 'optional', segs);
+    last = m.index + m[0].length;
+  }
+  if (last < content.length) segmentFields(content.slice(last), values, 'static', segs);
+  return cleanupSegments(segs);
+}
