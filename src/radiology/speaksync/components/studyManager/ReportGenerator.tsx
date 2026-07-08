@@ -7,6 +7,7 @@ import Specification from './report/Specification';
 import Invoice from './report/Invoice';
 import Summary from './report/Summary';
 import { TrashIcon } from '../Icons';
+import { buildReportData, type ReportData } from '../../utils/reportPoints';
 
 interface ReportGeneratorProps {
     studies: Study[];
@@ -20,16 +21,7 @@ interface ReportGeneratorProps {
 
 type ReportView = 'specification' | 'invoice' | 'summary';
 
-export interface ReportData {
-    studies: Study[];
-    totalPoints: number;
-    totalAmount: number;
-    groupedByCode: {
-        code: RadiologyCode;
-        count: number;
-        totalPoints: number;
-    }[];
-}
+export type { ReportData } from '../../utils/reportPoints';
 
 const ReportGenerator: React.FC<ReportGeneratorProps> = ({ studies, personalInfo, onPersonalInfoChange, codes, generatedReports, onAddGeneratedReport, onDeleteGeneratedReport }) => {
     const { t } = useTranslations();
@@ -46,31 +38,10 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({ studies, personalInfo
             return studyDate.getFullYear() === date.year && studyDate.getMonth() === date.month;
         });
 
-        // Allow reports with 0 studies per institutional requirement
-        const totalPoints = filteredStudies.reduce((sum, s) => sum + s.points, 0);
-        const totalAmount = totalPoints;
-        
-        const grouped = filteredStudies.reduce((acc, study) => {
-            if (!acc[study.code]) {
-                acc[study.code] = { count: 0, totalPoints: 0 };
-            }
-            acc[study.code].count++;
-            acc[study.code].totalPoints += study.points;
-            return acc;
-        }, {} as Record<string, { count: number; totalPoints: number }>);
-        
-        const groupedByCode = Object.entries(grouped).map(([code, data]) => ({
-            code: codes.find(c => c.code === code)!,
-            count: (data as { count: number; totalPoints: number }).count,
-            totalPoints: (data as { count: number; totalPoints: number }).totalPoints
-        })).sort((a,b) => b.count - a.count);
-
-        const newReportData = {
-            studies: filteredStudies,
-            totalPoints,
-            totalAmount,
-            groupedByCode,
-        };
+        // Allow reports with 0 studies per institutional requirement.
+        // Points are derived from the CURRENT price list (`codes`), not from the
+        // stale `study.points` snapshot, so the sum matches the displayed rate.
+        const newReportData = buildReportData(filteredStudies, codes);
 
         setReportData(newReportData);
         onAddGeneratedReport({

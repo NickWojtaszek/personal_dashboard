@@ -60,6 +60,29 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [data.radiologyCodes, setData]);
 
+    // Reconcile stored study.points against the current price list. `Study.points`
+    // is a denormalized snapshot taken at creation time; when a code's points are
+    // edited, existing studies keep the stale rate, so their sums drift from the
+    // displayed per-unit rate. Re-price them so `radiologyCodes` is the single
+    // source of truth everywhere `study.points` is read (Calendar, EditorPanel,
+    // exports). The `changed` guard makes this idempotent and loop-safe.
+    useEffect(() => {
+        const codes = data.radiologyCodes || [];
+        if (codes.length === 0) return;
+        let changed = false;
+        const repriced = data.studies.map(s => {
+            const code = codes.find(c => c.code === s.code);
+            if (code && code.points !== s.points) {
+                changed = true;
+                return { ...s, points: code.points };
+            }
+            return s;
+        });
+        if (changed) {
+            setData(prev => ({ ...prev, studies: repriced }));
+        }
+    }, [data.radiologyCodes, data.studies, setData]);
+
     const setStudies = (newStudies: Study[]) => {
         setData(prev => ({ ...prev, studies: newStudies }));
     };

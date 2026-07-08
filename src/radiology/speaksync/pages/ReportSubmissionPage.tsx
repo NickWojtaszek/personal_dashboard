@@ -14,6 +14,7 @@ import SubmissionProgressModal from '../components/SubmissionProgressModal';
 import ViewContainer from '../components/ViewContainer';
 import type { Report, RadiologyCode } from '../types';
 import { convertEntriesToReportData } from '../utils/reportTransformations';
+import { buildReportData, pointsForStudy } from '../utils/reportPoints';
 
 interface ReportSubmissionPageInternalProps {
   renderPersonalInfo: () => React.ReactNode;
@@ -83,31 +84,9 @@ const ReportSubmissionPage: React.FC = () => {
   }, [validStudies, selectedYear, selectedMonth]);
 
   const handleGenerate = () => {
-    // Allow generation even with 0 studies
-    const totalPoints = filteredStudies.reduce((sum, s) => sum + (s.points || 0), 0);
-    const totalAmount = totalPoints; // Amount in PLN
-    
-    const grouped = filteredStudies.reduce((acc, study) => {
-      if (!acc[study.code]) {
-        acc[study.code] = { count: 0, totalPoints: 0 };
-      }
-      acc[study.code].count++;
-      acc[study.code].totalPoints += study.points || 0;
-      return acc;
-    }, {} as Record<string, { count: number; totalPoints: number }>);
-    
-    const groupedByCode = Object.entries(grouped).map(([code, data]) => ({
-      code: validCodes.find(c => c.code === code)!,
-      count: (data as { count: number; totalPoints: number }).count,
-      totalPoints: (data as { count: number; totalPoints: number }).totalPoints
-    })).sort((a, b) => b.count - a.count);
-
-    setReportData({
-      studies: filteredStudies,
-      totalPoints,
-      totalAmount,
-      groupedByCode,
-    });
+    // Allow generation even with 0 studies. Points are derived from the CURRENT
+    // price list (`validCodes`), not from the stale `study.points` snapshot.
+    setReportData(buildReportData(filteredStudies, validCodes));
 
     // Switch to specification view
     setActiveView('specification');
@@ -121,7 +100,7 @@ const ReportSubmissionPage: React.FC = () => {
         numerBadania: study.patientId || '',
         opis: study.desc || '',
         dataWykonania: study.date || '',
-        kwota: (study.points || 0),
+        kwota: pointsForStudy(study, validCodes),
       }));
 
       const duplicateNumbers = getDuplicateStudyNumbers(entries, currentUser.id);
@@ -170,7 +149,7 @@ const ReportSubmissionPage: React.FC = () => {
           numerBadania: study.patientId || '',
           opis: study.desc || '',
           dataWykonania: study.date || '',
-          kwota: (study.points || 0),
+          kwota: pointsForStudy(study, validCodes),
         })),
         personalInfo: personalInfo,
         reportDate: new Date(selectedYear, selectedMonth).toISOString(),
