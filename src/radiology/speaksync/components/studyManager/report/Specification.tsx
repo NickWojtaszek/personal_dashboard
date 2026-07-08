@@ -74,9 +74,11 @@ const Specification: React.FC<SpecificationProps> = ({ reportData, personalInfo,
                 <thead style={{ background: '#f0f0f0' }}>
                      <tr>
                         <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontWeight: 'bold', width: '40px' }}>Lp</th>
-                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Kod świadczenia</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>kod świadczenia</th>
                         <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'left', fontWeight: 'bold' }}>Zakres świadczeń medycznych</th>
-                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>Liczba</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'center', fontWeight: 'bold', width: '60px' }}>ilość</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', width: '110px' }}>wynagrodzenie (w zł brutto)</th>
+                        <th style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', fontWeight: 'bold', width: '90px' }}>podsuma</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -86,11 +88,15 @@ const Specification: React.FC<SpecificationProps> = ({ reportData, personalInfo,
                             <td style={{ border: '1px solid #000', padding: '6px 8px' }}>{group.code.fullCode}</td>
                             <td style={{ border: '1px solid #000', padding: '6px 8px' }}>{group.code.desc}</td>
                             <td style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'center' }}>{group.count}</td>
+                            <td style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'right' }}>{group.code.points.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td style={{ border: '1px solid #000', padding: '6px 8px', textAlign: 'right' }}>{group.totalPoints.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                     ))}
                     <tr style={{ background: '#f0f0f0', fontWeight: 'bold' }}>
                         <td colSpan={3} style={{ border: '1px solid #000', padding: '8px', textAlign: 'right', paddingRight: '20px' }}>Razem</td>
                         <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'center' }}>{reportData.studies.length}</td>
+                        <td style={{ border: '1px solid #000', padding: '8px' }}></td>
+                        <td style={{ border: '1px solid #000', padding: '8px', textAlign: 'right' }}>{reportData.totalAmount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     </tr>
                 </tbody>
             </table>
