@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CogIcon, PlusIcon, VerticalSplitIcon, HorizontalSplitIcon, ChevronRightIcon, ChevronLeftIcon, XCircleIcon } from '../components/Icons';
 import StudyTypesAndTemplatesPanel from '../components/StudyTypesAndTemplatesPanel';
 import EditorPanel from '../components/EditorPanel';
@@ -38,7 +38,15 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
     const [internalTab, setInternalTab] = useState<MainTab>('editor');
     const activeTab = activeTabOverride ?? internalTab;
     const setActiveTab = onTabChange ?? setInternalTab;
-    const [text, setText] = useState<string>('');
+    // The in-progress report survives unmounts (dashboard navigation, settings
+    // toggle) via sessionStorage — losing a dictated report to a stray click
+    // was a real failure mode. Cleared when the tab closes.
+    const [text, setText] = useState<string>(() => {
+        try { return sessionStorage.getItem('dictation-editor-text') || ''; } catch { return ''; }
+    });
+    useEffect(() => {
+        try { sessionStorage.setItem('dictation-editor-text', text); } catch { /* quota/private mode */ }
+    }, [text]);
     const [comparisonText, setComparisonText] = useState<string>('');
     const [loadedTemplate, setLoadedTemplate] = useState<Template | null>(null);
     const [fill, setFill] = useState<{ template: Template; mode: 'replace' | 'append' } | null>(null);

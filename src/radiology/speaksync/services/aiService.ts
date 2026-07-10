@@ -206,9 +206,18 @@ export function splitDirectives(text: string): { body: string; directives: strin
 }
 
 const DIRECTIVE_HEADER: Record<Language, string> = {
-  pl: 'POLECENIA UŻYTKOWNIKA — to NIE jest treść raportu. Wykonaj każde polecenie na podstawie treści raportu i wpleć wyniki w odpowiednie sekcje (opis/wnioski). Jeśli w raporcie brakuje danych do wykonania polecenia (np. brak pomiarów wyjściowych dla RECIST), napisz to wprost zamiast zgadywać. Nie umieszczaj tego bloku ani samych poleceń w wyniku.',
-  en: 'USER DIRECTIVES — this is NOT report content. Execute each directive using the report body and integrate the results into the appropriate sections (findings/conclusions). If the report lacks the data needed (e.g. no baseline measurements for RECIST), state that explicitly instead of guessing. Do not include this block or the directives themselves in the output.',
-  de: 'BENUTZERANWEISUNGEN — dies ist KEIN Berichtsinhalt. Führe jede Anweisung anhand des Berichtstextes aus und arbeite die Ergebnisse in die passenden Abschnitte ein. Fehlen dafür Daten, benenne das ausdrücklich. Diesen Block nicht in die Ausgabe übernehmen.',
+  pl: `POLECENIA UŻYTKOWNIKA — to NIE jest treść raportu i nie może pojawić się w wyniku. Zasady wykonania:
+(1) Wyniki poleceń umieszczaj WYŁĄCZNIE w sekcji wniosków (Wnioski), chyba że polecenie wyraźnie wskazuje inną sekcję. Treści opisu NIE zmieniaj ponad zwykłe zasady korekty.
+(2) Polecenia obliczeniowe i klasyfikacyjne (RECIST, TNM, Fleischner itp.) wykonuj według formalnych kryteriów, podając liczby. Dla RECIST 1.1: suma najdłuższych wymiarów zmian docelowych (SLD) obecnie i poprzednio, zmiana procentowa, kategoria odpowiedzi — PD przy wzroście SLD ≥20% i ≥5 mm bezwzględnie lub nowej zmianie; PR przy spadku ≥30%; SD pomiędzy; CR przy ustąpieniu zmian. Format wniosku np.: "Progresja choroby wg RECIST 1.1 — SLD 6 mm → 16 mm (+167%)."
+(3) Jeśli w raporcie brakuje danych do wykonania polecenia (np. brak pomiarów poprzednich), napisz to wprost we wnioskach zamiast zgadywać.`,
+  en: `USER DIRECTIVES — this is NOT report content and must not appear in the output. Execution rules:
+(1) Place directive results ONLY in the conclusions section, unless the directive explicitly names another section. Do not alter the findings/body beyond the normal correction rules.
+(2) Computational/classification directives (RECIST, TNM, Fleischner etc.) must follow the formal criteria with numbers. For RECIST 1.1: sum of longest diameters (SLD) now and prior, percent change, response category — PD at SLD increase ≥20% and ≥5 mm absolute or a new lesion; PR at ≥30% decrease; SD in between; CR on resolution. Conclusion format e.g.: "Disease progression per RECIST 1.1 — SLD 6 mm → 16 mm (+167%)."
+(3) If the report lacks the data needed (e.g. no prior measurements), state that explicitly in the conclusions instead of guessing.`,
+  de: `BENUTZERANWEISUNGEN — dies ist KEIN Berichtsinhalt und darf nicht in der Ausgabe erscheinen. Regeln:
+(1) Ergebnisse NUR in den Schlussfolgerungen platzieren, sofern die Anweisung nichts anderes nennt; den Befundtext nicht darüber hinaus verändern.
+(2) Berechnungs-/Klassifikationsanweisungen (RECIST, TNM, Fleischner) nach formalen Kriterien mit Zahlen ausführen (RECIST 1.1: SLD aktuell und zuvor, prozentuale Änderung, Kategorie).
+(3) Fehlen Daten, dies ausdrücklich in den Schlussfolgerungen benennen statt zu raten.`,
 };
 
 function buildDirectiveBlock(directives: string[], language: Language): string {

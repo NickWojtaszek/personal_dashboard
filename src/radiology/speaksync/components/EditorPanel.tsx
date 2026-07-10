@@ -134,7 +134,9 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   const decreaseFontSize = () => setFontSize(s => Math.max(MIN_FONT_SIZE, s - 2));
 
   const editorRef = useRef<HTMLDivElement>(null);
-  const lastHtmlRef = useRef<string>(text);
+  // Seed with '' (not `text`) so a non-empty initial value — e.g. a report
+  // restored from sessionStorage after an unmount — gets painted on mount.
+  const lastHtmlRef = useRef<string>('');
   
   // Calculate Stats
   const today = new Date();
@@ -431,8 +433,13 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   }) => {
     // Update the editor with the final approved text
     setText(data.finalUserReport.replace(/\n/g, '<br>'));
-    setToastMessage('Report enhanced successfully!');
-    setTimeout(() => setToastMessage(''), 3000);
+
+    // Copy the approved report to the clipboard immediately — whatever happens
+    // next (study logger, tab switch, navigation) the RIS paste is safe.
+    navigator.clipboard.writeText(data.finalUserReport)
+      .then(() => setToastMessage('Report approved — copied to clipboard!'))
+      .catch(() => setToastMessage('Report approved (clipboard blocked — use Copy)'));
+    setTimeout(() => setToastMessage(''), 4000);
 
     // Close refinement modal
     setShowRefinementModal(false);
@@ -770,6 +777,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         isOpen={showCodeApprovalModal}
         extractedCode={extractedCodeData?.code || null}
         codes={radiologyCodes}
+        studies={studies}
         onAdd={handleCodeApprove}
         onSkip={handleCodeSkip}
       />
@@ -1004,6 +1012,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                 contentEditable
                 suppressContentEditableWarning
                 spellCheck={isSpellCheckOn}
+                lang={supportedLanguages[language].speechCode}
                 onInput={handleInput}
                 onContextMenu={handleContextMenu}
                 onPaste={handlePaste}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { CheckIcon } from './Icons';
-import type { RadiologyCode } from '../types';
+import type { RadiologyCode, Study } from '../types';
 
 interface StudyCodeApprovalModalProps {
   isOpen: boolean;
@@ -8,6 +8,8 @@ interface StudyCodeApprovalModalProps {
   extractedCode: string | null;
   /** Full price list, for the code picker and points preview. */
   codes: RadiologyCode[];
+  /** Logged studies — used to surface the most-used codes as quick-pick badges. */
+  studies?: Study[];
   onAdd: (code: string, patientId: string, date: string) => void;
   onSkip: () => void;
 }
@@ -20,6 +22,7 @@ const StudyCodeApprovalModal: React.FC<StudyCodeApprovalModalProps> = ({
   isOpen,
   extractedCode,
   codes,
+  studies = [],
   onAdd,
   onSkip
 }) => {
@@ -38,6 +41,13 @@ const StudyCodeApprovalModal: React.FC<StudyCodeApprovalModalProps> = ({
   }, [isOpen, extractedCode]);
 
   const codeData = useMemo(() => codes.find(c => c.code === code) || null, [codes, code]);
+
+  // Most-used codes as quick-pick badges — same heuristic as the planner's StudyLogger
+  const frequentCodes = useMemo(() => {
+    const frequency: Record<string, number> = {};
+    studies.forEach(s => { frequency[s.code] = (frequency[s.code] || 0) + 1; });
+    return Object.entries(frequency).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+  }, [studies]);
 
   if (!isOpen) return null;
 
@@ -63,6 +73,21 @@ const StudyCodeApprovalModal: React.FC<StudyCodeApprovalModalProps> = ({
         <div className="p-6 space-y-4">
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1">Study code</label>
+            {frequentCodes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {frequentCodes.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setCode(c)}
+                    className={`px-2 py-1 text-xs rounded font-mono transition-colors border ${code === c ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-900 border-gray-600 text-gray-300 hover:bg-gray-700'}`}
+                    title={codes.find(x => x.code === c)?.desc || c}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
             <select
               value={codeData ? code : ''}
               onChange={e => setCode(e.target.value)}

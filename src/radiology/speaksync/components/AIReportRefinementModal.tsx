@@ -431,6 +431,8 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
                 <div
                   ref={editableRef}
                   contentEditable
+                  spellCheck
+                  lang={supportedLanguages[language].speechCode}
                   onInput={handleEditableChange}
                   className="bg-green-500/10 p-4 rounded-md max-h-[60vh] overflow-y-auto border border-green-500/20 whitespace-pre-wrap text-keyboard focus:outline-none focus:ring-2 focus:ring-green-500"
                   style={{ minHeight: '200px', fontSize: `${fontSize}px` }}
