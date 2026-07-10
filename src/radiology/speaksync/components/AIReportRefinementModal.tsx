@@ -44,7 +44,7 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
 }) => {
   const { t, language, supportedLanguages } = useTranslations();
   const { currentTheme } = useTheme();
-  const { aiPromptConfig, styleExamples, dictation, directivePresets } = useSettings();
+  const { aiPromptConfig, styleExamples, dictation } = useSettings();
 
   const [step, setStep] = useState<ModalStep>('processing');
   const [aiImprovedText, setAiImprovedText] = useState('');
@@ -117,15 +117,14 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
     }
   }, [isOpen, originalText]);
 
-  // Re-run AI on the current edited text (second pass). New #directives added
-  // during editing are picked up here too; preset chips pass extraDirective.
-  const handleRerunAI = async (extraDirective?: string) => {
+  // Re-run AI on the current edited text (second pass). New #directives typed
+  // or dictated during review are picked up here too.
+  const handleRerunAI = async () => {
     if (!editedText.trim() || isRerunning) return;
     setIsRerunning(true);
     setError(null);
     try {
       const { body, directives } = splitDirectives(editedText);
-      if (extraDirective) directives.push(extraDirective);
       if (directives.length > 0) setAppliedDirectives(prev => [...prev, ...directives]);
       const enhanced = await enhanceReport(body, aiPromptConfig, language, styleExamples, directives);
       if (enhanced && enhanced.trim()) {
@@ -420,23 +419,12 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
                     </button>
                   </div>
                 </div>
-                {(appliedDirectives.length > 0 || directivePresets.some(p => p.label.trim() && p.prompt.trim())) && (
+                {appliedDirectives.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5 mb-2">
                     {appliedDirectives.map((d, i) => (
                       <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30" title="Directive executed by the AI — verify the result below">
                         ⚡ {d}
                       </span>
-                    ))}
-                    {directivePresets.filter(p => p.label.trim() && p.prompt.trim() && !appliedDirectives.includes(p.prompt)).map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => handleRerunAI(p.prompt)}
-                        disabled={isRerunning}
-                        className="px-2 py-0.5 text-xs rounded-full bg-gray-700 text-gray-300 border border-gray-600 hover:bg-purple-600/30 hover:text-purple-200 hover:border-purple-500/40 transition-colors disabled:opacity-40"
-                        title={`Re-run AI with: ${p.prompt}`}
-                      >
-                        + {p.label}
-                      </button>
                     ))}
                   </div>
                 )}
