@@ -390,17 +390,13 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         };
     }, [toolbarState]);
 
-  // Offer to log the study in the planner once per loaded template — the code
-  // is extracted from the template title (e.g. "025 - CT Head"). Triggered at
-  // the two "report finished" moments: copying the final text, and accepting
-  // an AI refinement.
-  const codePromptShownForRef = useRef<string | null>(null);
-  const maybePromptStudyCode = useCallback(() => {
-    if (!loadedTemplate?.title) return;
-    if (codePromptShownForRef.current === loadedTemplate.id) return;
-    const extracted = extractAndValidateStudyCode(loadedTemplate.title, radiologyCodes);
-    if (!extracted) return;
-    codePromptShownForRef.current = loadedTemplate.id;
+  // After a report is approved, the study logger ALWAYS opens: code pre-filled
+  // from the template title when recognisable (override allowed), study number
+  // entered by hand, then it lands in the planner.
+  const promptStudyLog = useCallback(() => {
+    const extracted = loadedTemplate?.title
+      ? extractAndValidateStudyCode(loadedTemplate.title, radiologyCodes)
+      : null;
     setExtractedCodeData(extracted);
     setShowCodeApprovalModal(true);
   }, [loadedTemplate, radiologyCodes]);
@@ -410,7 +406,6 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    maybePromptStudyCode();
   };
 
   const handleEnhanceWithAI = useCallback(async () => {
@@ -442,7 +437,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     setShowRefinementModal(false);
     setRefinementOriginalText('');
 
-    maybePromptStudyCode();
+    promptStudyLog();
   };
 
   const handleRefinementCancel = () => {
@@ -450,19 +445,14 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     setRefinementOriginalText('');
   };
 
-  const handleCodeApprove = (code: string, date: string) => {
-    // Add study to planner using the extracted code
-    console.log('📋 Adding study to planner:', { code, date });
-    const success = addStudy(code, '', date);
-    console.log('✅ Study add result:', success);
-
+  const handleCodeApprove = (code: string, patientId: string, date: string) => {
+    const success = addStudy(code, patientId, date);
     if (success) {
       setShowCodeApprovalModal(false);
       setExtractedCodeData(null);
-      setToastMessage(`Study ${code} added to planner for ${new Date(date).toLocaleDateString()}!`);
+      setToastMessage(`Study ${code}${patientId ? ` (${patientId})` : ''} added to planner for ${new Date(date).toLocaleDateString()}!`);
       setTimeout(() => setToastMessage(''), 3000);
     } else {
-      console.error('❌ Failed to add study - code not found in radiology codes');
       alert(`Failed to add study to planner. Code "${code}" not found in radiology codes database.`);
     }
   };
@@ -737,7 +727,10 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [hotkeys, handleToggleListen, handleEnhanceWithAI, setLayoutMode]);
 
-  const hasText = getPlainText(editorRef.current).length > 0;
+  // Derive from state, not the DOM: after programmatic text changes (template
+  // load, AI approve) the editor DOM updates post-render, so a DOM read here
+  // left the grammar/enhance buttons stuck disabled until the next keystroke.
+  const hasText = useMemo(() => text.replace(/<[^>]*>?/gm, '').replace(/&nbsp;/g, ' ').trim().length > 0, [text]);
   const isSplitView = layoutMode !== 'normal';
 
   const getGridClass = () => {
@@ -769,9 +762,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
       <StudyCodeApprovalModal
         isOpen={showCodeApprovalModal}
         extractedCode={extractedCodeData?.code || null}
-        codeData={extractedCodeData?.codeData || null}
-        studyDate={new Date().toISOString()}
-        onApprove={handleCodeApprove}
+        codes={radiologyCodes}
+        onAdd={handleCodeApprove}
         onSkip={handleCodeSkip}
       />
       {toolbarState?.visible && (

@@ -181,6 +181,41 @@ export function getAIService(): AIService {
   return aiServiceInstance;
 }
 
+// ─── # directives ────────────────────────────────────────────────────
+// Anywhere in the dictated report, a fragment starting with `#` is an
+// instruction to the AI, not report text: "#policz RECIST",
+// "#zaproponuj follow-up guzka płuca". They are stripped from the body
+// and passed as an explicit instruction block.
+
+/** Split a report into its body and any #-directives it contains. */
+export function splitDirectives(text: string): { body: string; directives: string[] } {
+  const directives: string[] = [];
+  const body = text
+    .split('\n')
+    .map(line => {
+      const hashIdx = line.indexOf('#');
+      if (hashIdx === -1) return line;
+      const directive = line.slice(hashIdx + 1).trim();
+      if (directive) directives.push(directive);
+      return line.slice(0, hashIdx).trimEnd();
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return { body, directives };
+}
+
+const DIRECTIVE_HEADER: Record<Language, string> = {
+  pl: 'POLECENIA UŻYTKOWNIKA — to NIE jest treść raportu. Wykonaj każde polecenie na podstawie treści raportu i wpleć wyniki w odpowiednie sekcje (opis/wnioski). Jeśli w raporcie brakuje danych do wykonania polecenia (np. brak pomiarów wyjściowych dla RECIST), napisz to wprost zamiast zgadywać. Nie umieszczaj tego bloku ani samych poleceń w wyniku.',
+  en: 'USER DIRECTIVES — this is NOT report content. Execute each directive using the report body and integrate the results into the appropriate sections (findings/conclusions). If the report lacks the data needed (e.g. no baseline measurements for RECIST), state that explicitly instead of guessing. Do not include this block or the directives themselves in the output.',
+  de: 'BENUTZERANWEISUNGEN — dies ist KEIN Berichtsinhalt. Führe jede Anweisung anhand des Berichtstextes aus und arbeite die Ergebnisse in die passenden Abschnitte ein. Fehlen dafür Daten, benenne das ausdrücklich. Diesen Block nicht in die Ausgabe übernehmen.',
+};
+
+function buildDirectiveBlock(directives: string[], language: Language): string {
+  const header = DIRECTIVE_HEADER[language] || DIRECTIVE_HEADER.en;
+  return `---\n${header}\n${directives.map(d => `- ${d}`).join('\n')}\n---`;
+}
+
 /**
  * Legacy exports for backward compatibility
  * These maintain the same function signatures as the old geminiService
@@ -189,9 +224,13 @@ export const enhanceReport = async (
   text: string,
   config: AIPromptConfig,
   language: Language,
-  examples: StyleExample[] = []
+  examples: StyleExample[] = [],
+  directives: string[] = []
 ): Promise<string> => {
-  return getAIService().enhanceReport(text, config, language, examples);
+  const payload = directives.length > 0
+    ? `${text}\n\n${buildDirectiveBlock(directives, language)}`
+    : text;
+  return getAIService().enhanceReport(payload, config, language, examples);
 };
 
 export const correctSelection = async (text: string): Promise<string> => {

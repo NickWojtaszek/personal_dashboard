@@ -3,8 +3,20 @@ import { useTranslations } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 import { SpinnerIcon, CheckIcon } from './Icons';
-import { enhanceReport } from '../services/aiService';
+import { enhanceReport, checkGrammar, splitDirectives } from '../services/aiService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { applyGrammarHighlighting, removeGrammarHighlighting } from '../utils/domUtils';
+import GrammarTooltip from './GrammarTooltip';
+import type { GrammarError } from '../types';
+
+const FONT_SIZE_KEY = 'ai-refinement-font-size';
+const loadFontSize = (): number => {
+  try {
+    const saved = parseInt(localStorage.getItem(FONT_SIZE_KEY) || '', 10);
+    if (!isNaN(saved) && saved >= 10 && saved <= 24) return saved;
+  } catch { /* ignore */ }
+  return 16; // default bumped +2 from the old 14 — this is the signing view
+};
 
 interface AIReportRefinementModalProps {
   isOpen: boolean;
@@ -37,10 +49,24 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
   const [aiImprovedText, setAiImprovedText] = useState('');
   const [editedText, setEditedText] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [fontSize, setFontSize] = useState(14);
+  const [fontSize, setFontSizeState] = useState(loadFontSize);
   const [copied, setCopied] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Single corrected view is the default — the original is a toggle away.
+  const [isExpanded, setIsExpanded] = useState(true);
   const [isRerunning, setIsRerunning] = useState(false);
+  const [appliedDirectives, setAppliedDirectives] = useState<string[]>([]);
+  const [grammarErrors, setGrammarErrors] = useState<GrammarError[]>([]);
+  const [activeError, setActiveError] = useState<{ error: GrammarError; element: HTMLElement } | null>(null);
+  const [isCheckingGrammar, setIsCheckingGrammar] = useState(false);
+  const [grammarResult, setGrammarResult] = useState<number | null>(null);
+
+  const setFontSize = (updater: (prev: number) => number) => {
+    setFontSizeState(prev => {
+      const next = updater(prev);
+      try { localStorage.setItem(FONT_SIZE_KEY, String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   const editableRef = useRef<HTMLDivElement>(null);
 
@@ -80,24 +106,33 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
       setAiImprovedText('');
       setEditedText('');
       setError(null);
-      setIsExpanded(false);
+      setIsExpanded(true);
       setIsRerunning(false);
+      setAppliedDirectives([]);
+      setGrammarErrors([]);
+      setActiveError(null);
+      setGrammarResult(null);
       processAIEnhancement();
     }
   }, [isOpen, originalText]);
 
-  // Re-run AI on the current edited text (second pass)
+  // Re-run AI on the current edited text (second pass). New #directives added
+  // during editing are picked up here too.
   const handleRerunAI = async () => {
     if (!editedText.trim() || isRerunning) return;
     setIsRerunning(true);
     setError(null);
     try {
-      const enhanced = await enhanceReport(editedText, aiPromptConfig, language, styleExamples);
+      const { body, directives } = splitDirectives(editedText);
+      if (directives.length > 0) setAppliedDirectives(prev => [...prev, ...directives]);
+      const enhanced = await enhanceReport(body, aiPromptConfig, language, styleExamples, directives);
       if (enhanced && enhanced.trim()) {
         const result = enhanced.trim();
         setAiImprovedText(result);
         setEditedText(result);
         if (editableRef.current) editableRef.current.textContent = result;
+        setGrammarErrors([]);
+        setActiveError(null);
       } else {
         setError('AI returned no improvements');
       }
@@ -109,11 +144,14 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
     }
   };
 
-  // AI Enhancement
+  // AI Enhancement — #directives in the dictation ("#policz RECIST") are
+  // stripped from the body and executed as explicit instructions.
   const processAIEnhancement = async () => {
     try {
       setError(null);
-      const enhanced = await enhanceReport(originalText, aiPromptConfig, language, styleExamples);
+      const { body, directives } = splitDirectives(originalText);
+      setAppliedDirectives(directives);
+      const enhanced = await enhanceReport(body, aiPromptConfig, language, styleExamples, directives);
 
       if (!enhanced || enhanced.trim() === originalText.trim()) {
         setError('AI returned no improvements');
@@ -129,6 +167,50 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
     }
   };
 
+  // In-modal grammar check: highlights issues in the corrected view; click a
+  // highlight to see and accept the suggestion.
+  const handleGrammarCheck = async () => {
+    const current = editableRef.current?.textContent || '';
+    if (!current.trim() || isCheckingGrammar) return;
+    removeGrammarHighlighting(editableRef.current);
+    setGrammarErrors([]);
+    setActiveError(null);
+    setIsCheckingGrammar(true);
+    try {
+      const errors = await checkGrammar(current);
+      const withIds = errors.map(e => ({ ...e, id: crypto.randomUUID() }));
+      if (withIds.length > 0) {
+        setGrammarErrors(withIds);
+        applyGrammarHighlighting(editableRef.current, withIds);
+      } else {
+        setError(null);
+      }
+      setGrammarResult(withIds.length);
+    } catch (err) {
+      console.error('Grammar check error:', err);
+      setError(err instanceof Error ? err.message : 'Grammar check failed');
+    } finally {
+      setIsCheckingGrammar(false);
+    }
+  };
+
+  // Click-to-fix on highlighted grammar errors
+  useEffect(() => {
+    const el = editableRef.current;
+    if (!el) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('grammar-error')) {
+        const err = grammarErrors.find(g => g.id === target.dataset.errorId);
+        if (err) setActiveError({ error: err, element: target });
+      } else {
+        setActiveError(null);
+      }
+    };
+    el.addEventListener('click', handleClick);
+    return () => el.removeEventListener('click', handleClick);
+  }, [grammarErrors, step]);
+
   // Initialize contentEditable on first load or step change
   useEffect(() => {
     if (editableRef.current && step === 'review' && !editableRef.current.textContent) {
@@ -139,6 +221,13 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
   const handleEditableChange = () => {
     if (editableRef.current) {
       setEditedText(editableRef.current.textContent || '');
+      if (grammarErrors.length > 0) {
+        // Content changed — highlights are stale
+        removeGrammarHighlighting(editableRef.current);
+        setGrammarErrors([]);
+        setActiveError(null);
+        setGrammarResult(null);
+      }
     }
   };
 
@@ -252,6 +341,21 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
                         {isListening ? 'Stop' : 'Dictate'}
                       </button>
                     )}
+                    {/* Grammar check */}
+                    <button
+                      onClick={handleGrammarCheck}
+                      disabled={isCheckingGrammar || !editedText.trim()}
+                      className={`px-2 py-1 text-xs rounded transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${grammarErrors.length > 0 ? 'bg-red-600/70 hover:bg-red-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`}
+                      title={t('editor.grammar.check', 'Grammar check')}
+                    >
+                      {isCheckingGrammar ? <SpinnerIcon className="h-3 w-3" /> : 'Aa✓'}
+                      {t('editor.grammar.check', 'Grammar')}
+                      {grammarResult !== null && !isCheckingGrammar && (
+                        <span className={grammarResult > 0 ? 'font-bold' : 'text-green-300'}>
+                          {grammarResult > 0 ? grammarResult : '✓'}
+                        </span>
+                      )}
+                    </button>
                     {/* Re-run AI */}
                     <button
                       onClick={handleRerunAI}
@@ -309,6 +413,15 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
                     </button>
                   </div>
                 </div>
+                {appliedDirectives.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {appliedDirectives.map((d, i) => (
+                      <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30" title="Directive executed by the AI — verify the result below">
+                        ⚡ {d}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div
                   ref={editableRef}
                   contentEditable
@@ -316,6 +429,19 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
                   className="bg-green-500/10 p-4 rounded-md max-h-[60vh] overflow-y-auto border border-green-500/20 whitespace-pre-wrap text-keyboard focus:outline-none focus:ring-2 focus:ring-green-500"
                   style={{ minHeight: '200px', fontSize: `${fontSize}px` }}
                 />
+                {activeError && (
+                  <GrammarTooltip
+                    activeError={activeError}
+                    onClose={() => setActiveError(null)}
+                    onAccept={(element, suggestion) => {
+                      element.textContent = suggestion;
+                      element.classList.remove('grammar-error');
+                      setGrammarErrors(prev => prev.filter(e => e.id !== activeError.error.id));
+                      setActiveError(null);
+                      setEditedText(editableRef.current?.textContent || '');
+                    }}
+                  />
+                )}
               </div>
             </div>
           )}
