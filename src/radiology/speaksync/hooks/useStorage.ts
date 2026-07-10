@@ -73,6 +73,11 @@ export function useStorage<T>(
   }, [key]);
 
   useEffect(() => {
+    // Reset on every (re)mount — under React StrictMode the component is
+    // mounted, unmounted, and remounted with the SAME refs, so without this
+    // reset the flag stays false forever and `loading` never resolves
+    // (which silently blocked template seeding in dev).
+    mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 

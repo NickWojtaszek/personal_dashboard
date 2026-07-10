@@ -102,7 +102,7 @@ const AIAssistantSection: React.FC<AIAssistantSectionProps> = ({ onDataExtracted
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
                     const textContent = await page.getTextContent();
-                    pdfText += textContent.items.map(item => item.str).join(' ') + '\n';
+                    pdfText += textContent.items.map(item => ('str' in item ? item.str : '')).join(' ') + '\n';
                 }
             } catch {
                 // PDF text extraction failed — will use visual mode

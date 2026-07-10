@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ReportData } from '../ReportGenerator';
+import type { ReportData } from '../../../utils/reportPoints';
 import { useTranslations } from '../../../context/LanguageContext';
 
 interface SummaryProps {
@@ -15,6 +15,8 @@ const Summary: React.FC<SummaryProps> = ({ reportData, reportDate }) => {
 
     const mostFrequent = reportData.groupedByCode.length > 0 ? reportData.groupedByCode[0] : null;
     const highestValue = reportData.groupedByCode.length > 0 ? [...reportData.groupedByCode].sort((a,b) => b.totalPoints - a.totalPoints)[0] : null;
+    const studyCount = reportData.studies.length;
+    const averageValue = studyCount > 0 ? reportData.totalAmount / studyCount : 0;
 
     return (
         <div style={{ fontFamily: 'Arial, sans-serif', fontSize: '10pt', lineHeight: 1.5 }}>
@@ -25,7 +27,7 @@ const Summary: React.FC<SummaryProps> = ({ reportData, reportDate }) => {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '15px' }}>
                     <div>📊 Całkowita liczba badań: <strong>{reportData.studies.length}</strong></div>
                     <div>💰 Kwota brutto: <strong>{reportData.totalAmount.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN</strong></div>
-                    <div>⭐ Średnia wartość badania: <strong>{(reportData.totalAmount / reportData.studies.length).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN</strong></div>
+                    <div>⭐ Średnia wartość badania: <strong>{averageValue.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} PLN</strong></div>
                 </div>
             </div>
 
@@ -63,8 +65,8 @@ const Summary: React.FC<SummaryProps> = ({ reportData, reportDate }) => {
                  <div style={{ background: '#f0fff4', padding: '15px', borderRadius: '5px', border: '1px solid #ddd' }}>
                     <h4 style={{ color: '#4caf50', marginBottom: '10px' }}>📈 Analiza</h4>
                     <ul style={{ listStyle: 'none', padding: 0 }}>
-                        {mostFrequent && <li>• Najczęstszy kod: <strong>{mostFrequent.code.code} ({ (mostFrequent.count / reportData.studies.length * 100).toFixed(1) }%)</strong></li>}
-                        {highestValue && <li>• Najwyższa wartość: <strong>{highestValue.code.code} ({ (highestValue.totalPoints / reportData.totalPoints * 100).toFixed(1) }%)</strong></li>}
+                        {mostFrequent && studyCount > 0 && <li>• Najczęstszy kod: <strong>{mostFrequent.code.code} ({ (mostFrequent.count / studyCount * 100).toFixed(1) }%)</strong></li>}
+                        {highestValue && reportData.totalPoints > 0 && <li>• Najwyższa wartość: <strong>{highestValue.code.code} ({ (highestValue.totalPoints / reportData.totalPoints * 100).toFixed(1) }%)</strong></li>}
                     </ul>
                 </div>
             </div>

@@ -104,6 +104,7 @@ export const ReportProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               existingReportId: report.id,
               existingUserId: report.userId,
               existingUserEmail: report.userEmail,
+              isCrossUserFraud: report.userId !== userId,
             });
           }
         }
@@ -142,14 +143,18 @@ export const ReportProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Ensure verificationRecords is an array before spreading
     const validVerifications = Array.isArray(verificationRecords) ? verificationRecords : [];
     setVerificationRecords([...validVerifications, verification]);
-    
-    // Update report status based on verification
-    const validReports = Array.isArray(reports) ? reports : [];
-    setReports(validReports.map(r =>
-      r && r.id === reportId
-        ? r
-        : r
-    ));
+
+    // A rejection flips the report back so the author sees it and can resubmit.
+    // Approval stays 'submitted' — the approved state lives in the verification
+    // record itself (that's what accounting reads).
+    if (verification.status === 'rejected') {
+      const validReports = Array.isArray(reports) ? reports : [];
+      setReports(validReports.map(r =>
+        r && r.id === reportId
+          ? { ...r, status: 'rejected' as const }
+          : r
+      ));
+    }
   };
 
   const getReportsByUser = (userId: string): Report[] => {

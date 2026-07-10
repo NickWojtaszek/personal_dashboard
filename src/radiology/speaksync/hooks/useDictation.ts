@@ -17,7 +17,6 @@ interface UseDictationProps {
     onTranscriptFinalized: (transcript: string, source?: 'voice' | 'server') => void;
     lang: string;
     vocabulary?: string[];
-    remoteAudioStream?: MediaStream;
 }
 
 export const useDictation = (props: UseDictationProps) => {
@@ -27,7 +26,6 @@ export const useDictation = (props: UseDictationProps) => {
         onTranscriptFinalized: (text) => props.onTranscriptFinalized(text, 'voice'),
         lang: props.lang,
         vocabulary: props.vocabulary,
-        remoteAudioStream: props.remoteAudioStream,
     });
 
     const server = useServerTranscription({

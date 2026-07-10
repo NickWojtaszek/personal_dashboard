@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ReportData } from '../ReportGenerator';
+import type { ReportData } from '../../../utils/reportPoints';
 import type { PersonalInfo } from '../../../types';
 import { useTranslations } from '../../../context/LanguageContext';
 

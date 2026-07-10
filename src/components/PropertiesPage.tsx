@@ -39,7 +39,7 @@ const PropertyListRow: React.FC<{ property: PropertyInfo; onSelect: (id: string)
             {property.location && <p className="text-xs text-slate-500 dark:text-gray-400 truncate">{property.location}</p>}
         </div>
         <div className="col-span-4 min-w-0">
-            {property.address && <p className="text-sm text-slate-600 dark:text-gray-300 truncate">{property.address}</p>}
+            {property.overview?.address && <p className="text-sm text-slate-600 dark:text-gray-300 truncate">{property.overview.address}</p>}
         </div>
         <div className="col-span-4 flex justify-end gap-1 flex-wrap items-center">
             {property.disposal && <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-200">Sold</span>}

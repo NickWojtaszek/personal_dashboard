@@ -87,8 +87,8 @@ export const SmallMicrophoneIcon: React.FC<{ className?: string }> = ({ classNam
     </svg>
 );
 
-export const ChevronDownIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-400 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+export const ChevronDownIcon: React.FC<{ className?: string; style?: React.CSSProperties }> = ({ className, style }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 text-gray-400 ${className}`} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
     </svg>
 );
@@ -147,14 +147,14 @@ export const PencilIcon: React.FC<{className?: string}> = ({ className = "h-5 w-
     </svg>
 );
 
-export const DuplicateIcon: React.FC<{className?: string}> = ({ className = "h-5 w-5 text-gray-300" }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+export const DuplicateIcon: React.FC<{className?: string; style?: React.CSSProperties}> = ({ className = "h-5 w-5 text-gray-300", style }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 4h4m4 0a2 2 0 01-2 2h-4a2 2 0 01-2-2V8a2 2 0 012-2h4a2 2 0 012 2v4z" />
     </svg>
 );
 
-export const DragHandleIcon: React.FC<{className?: string}> = ({ className = "h-5 w-5 text-gray-400" }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+export const DragHandleIcon: React.FC<{className?: string; style?: React.CSSProperties}> = ({ className = "h-5 w-5 text-gray-400", style }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} style={style} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
     </svg>
 );

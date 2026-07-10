@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslations } from '../context/LanguageContext';
 import type { AIProviderConfig, AIProviderType } from '../types';
+import { GEMINI_FLASH_MODEL } from '../constants';
 import { ArrowLeftIcon, PlusIcon, TrashIcon, CheckIcon, XCircleIcon, EyeIcon, EyeSlashIcon } from '../components/Icons';
 
 const AIConfigurationPage: React.FC = () => {
@@ -23,7 +24,7 @@ const AIConfigurationPage: React.FC = () => {
   }> = {
     gemini: {
       name: 'Google Gemini',
-      defaultModel: 'gemini-3.5-flash',
+      defaultModel: GEMINI_FLASH_MODEL,
       info: 'Get API key from: https://makersuite.google.com/app/apikey'
     },
     openai: {
@@ -34,7 +35,7 @@ const AIConfigurationPage: React.FC = () => {
     },
     anthropic: {
       name: 'Anthropic Claude',
-      defaultModel: 'claude-3-opus-20240229',
+      defaultModel: 'claude-sonnet-5',
       info: 'Get API key from: https://console.anthropic.com/',
       corsWarning: '⚠️ Requires backend proxy - browsers block direct Anthropic API calls due to CORS'
     },

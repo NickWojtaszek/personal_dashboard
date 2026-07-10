@@ -213,6 +213,7 @@ export interface ReportEntry {
   opis: string;
   dataWykonania: string;
   kwota: number;
+  kodNFZ?: string; // NFZ study code (absent on reports submitted before it was captured)
   contentHash?: string; // Hash to detect exact duplicates
 }
 
@@ -239,6 +240,7 @@ export interface Report {
     existingReportId: string;
     existingUserId: string;
     existingUserEmail: string;
+    isCrossUserFraud?: boolean; // duplicate found in a different user's report
   }[];
 }
 

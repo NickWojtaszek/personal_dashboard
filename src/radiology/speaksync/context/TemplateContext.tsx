@@ -27,6 +27,7 @@ interface TemplateContextType {
     updateScenario: (index: number, newName: string) => void;
     deleteScenario: (index: number) => void;
     reorderTemplates: (fromId: string, toId: string) => void;
+    moveTemplate: (id: string, direction: 'up' | 'down') => void;
     clearTemplateData: () => void;
     importTemplates: (newTemplates: Template[]) => number;
     importTexterTemplates: (data: any) => number;
@@ -249,12 +250,28 @@ export const TemplateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const templatesCopy = [...userTemplates];
         const fromIndex = templatesCopy.findIndex(t => t.id === fromId);
         const toIndex = templatesCopy.findIndex(t => t.id === toId);
-        
+
         if (fromIndex === -1 || toIndex === -1) return;
-        
+
         const [movedItem] = templatesCopy.splice(fromIndex, 1);
         templatesCopy.splice(toIndex, 0, movedItem);
         updateAppData({ ...appData, templates: templatesCopy });
+    };
+
+    /** Swap a template with its nearest neighbour of the SAME study type, so the
+     *  visible order inside the anatomy group shifts one step. Persisted. */
+    const moveTemplate = (id: string, direction: 'up' | 'down') => {
+        const all = appData.templates || [];
+        const idx = all.findIndex(t => t.id === id);
+        if (idx === -1) return;
+        const group = all[idx].studyType;
+        const step = direction === 'up' ? -1 : 1;
+        let j = idx + step;
+        while (j >= 0 && j < all.length && all[j].studyType !== group) j += step;
+        if (j < 0 || j >= all.length) return;
+        const copy = [...all];
+        [copy[idx], copy[j]] = [copy[j], copy[idx]];
+        updateAppData({ ...appData, templates: copy });
     };
 
     const clearTemplateData = () => {
@@ -351,6 +368,7 @@ export const TemplateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateScenario,
         deleteScenario,
         reorderTemplates,
+        moveTemplate,
         clearTemplateData,
         importTemplates,
         importTexterTemplates,

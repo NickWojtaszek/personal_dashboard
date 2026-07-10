@@ -103,9 +103,12 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const codeData = data.radiologyCodes.find(c => c.code === code);
         if (!codeData) return false;
 
+        // Guaranteed-unique numeric id: strictly greater than every existing id,
+        // so rapid successive adds (same-millisecond Date.now) can't collide.
+        const maxExistingId = data.studies.reduce((max, s) => Math.max(max, s.id), 0);
         const newStudy: Study = {
-            id: Date.now(), 
-            code, 
+            id: Math.max(Date.now(), maxExistingId + 1),
+            code,
             patientId,
             points: codeData.points, 
             desc: codeData.desc,

@@ -4,7 +4,6 @@ import { CopyIcon, CheckIcon, TrashIcon, SparklesIcon, SpinnerIcon, StarIcon, Pe
 import type { Template, GrammarError } from '../types';
 import CorrectionTooltip from './CorrectionTooltip';
 import { useTranslations } from '../context/LanguageContext';
-import CorrectionModal from './CorrectionModal';
 import AIReportRefinementModal from './AIReportRefinementModal';
 import StudyCodeApprovalModal from './StudyCodeApprovalModal';
 import { useApp } from '../context/AppContext';
@@ -21,7 +20,7 @@ import TrainingCaptureBadge from './TrainingCaptureBadge';
 import { enhanceReport, correctSelection as correctSelectionWithAI, checkGrammar } from '../services/aiService';
 import GrammarTooltip from './GrammarTooltip';
 import { useTheme } from '../context/ThemeContext';
-import { applyGrammarHighlighting, removeGrammarHighlighting, getPlainText, insertHtmlAtCursor } from '../utils/domUtils';
+import { applyGrammarHighlighting, removeGrammarHighlighting, getPlainText, insertHtmlAtCursor, deleteRangeUndoable } from '../utils/domUtils';
 import { medicalPostProcess } from '../utils/medicalFormatter';
 import { radiologyTerms } from '../data/radiologyTerms';
 
@@ -78,20 +77,18 @@ interface EditorPanelProps {
   comparisonText: string;
   setComparisonText: React.Dispatch<React.SetStateAction<string>>;
   comparisonTitle?: string;
-  remoteAudioStream?: MediaStream | null;
 }
 
-const EditorPanel: React.FC<EditorPanelProps> = ({ 
-    text, 
-    setText, 
-    onClear, 
-    loadedTemplate, 
-    layoutMode, 
+const EditorPanel: React.FC<EditorPanelProps> = ({
+    text,
+    setText,
+    onClear,
+    loadedTemplate,
+    layoutMode,
     setLayoutMode,
     comparisonText,
     setComparisonText,
-    comparisonTitle,
-    remoteAudioStream
+    comparisonTitle
 }) => {
   const { t, language, supportedLanguages } = useTranslations();
   const { currentTheme } = useTheme();
@@ -102,40 +99,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
   const [copied, setCopied] = useState<boolean>(false);
   const [isCorrectionMode, setIsCorrectionMode] = useState<boolean>(false);
-  
-  // Initialize microphone source from localStorage
-  const [microphoneSource, setMicrophoneSourceState] = useState<'local' | 'remote'>(() => {
-    try {
-      const saved = localStorage.getItem('microphoneSource');
-      return (saved === 'remote' ? 'remote' : 'local') as 'local' | 'remote';
-    } catch {
-      return 'local';
-    }
-  });
 
-  // Custom setter that also saves to localStorage
-  const setMicrophoneSource = (value: 'local' | 'remote' | ((prev: 'local' | 'remote') => 'local' | 'remote')) => {
-    setMicrophoneSourceState((prev) => {
-      const newValue = typeof value === 'function' ? value(prev) : value;
-      try {
-        localStorage.setItem('microphoneSource', newValue);
-      } catch (e) {
-        console.warn('Failed to save microphone source preference:', e);
-      }
-      return newValue;
-    });
-  };
-
-  const [localRemoteAudioStream, setLocalRemoteAudioStream] = useState<MediaStream | null>(remoteAudioStream || null);
-
-  // Sync remote audio stream from prop
-  useEffect(() => {
-    setLocalRemoteAudioStream(remoteAudioStream || null);
-  }, [remoteAudioStream]);
-  
-  const [isProcessingAI, setIsProcessingAI] = useState<boolean>(false);
-  const [aiResult, setAiResult] = useState<{ original: string; corrected: string } | null>(null);
-  const [showAiResultModal, setShowAiResultModal] = useState<boolean>(false);
   const [showRefinementModal, setShowRefinementModal] = useState<boolean>(false);
   const [refinementOriginalText, setRefinementOriginalText] = useState<string>('');
   const [showCodeApprovalModal, setShowCodeApprovalModal] = useState<boolean>(false);
@@ -299,8 +263,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   const { isListening, interimText, error, toggleListen, isAlwaysOn, setIsAlwaysOn, isSupported, mode: dictationMode, serverLatency, isProcessing: serverProcessing, permissionDenied, lastResponse: lastServerResponse, clearError } = useDictation({
     onTranscriptFinalized,
     lang: supportedLanguages[language].speechCode,
-    vocabulary: radiologyTerms,
-    remoteAudioStream: microphoneSource === 'remote' ? localRemoteAudioStream : undefined
+    vocabulary: radiologyTerms
   });
 
   const handleToggleListen = useCallback(() => {
@@ -427,16 +390,32 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
         };
     }, [toolbarState]);
 
+  // Offer to log the study in the planner once per loaded template — the code
+  // is extracted from the template title (e.g. "025 - CT Head"). Triggered at
+  // the two "report finished" moments: copying the final text, and accepting
+  // an AI refinement.
+  const codePromptShownForRef = useRef<string | null>(null);
+  const maybePromptStudyCode = useCallback(() => {
+    if (!loadedTemplate?.title) return;
+    if (codePromptShownForRef.current === loadedTemplate.id) return;
+    const extracted = extractAndValidateStudyCode(loadedTemplate.title, radiologyCodes);
+    if (!extracted) return;
+    codePromptShownForRef.current = loadedTemplate.id;
+    setExtractedCodeData(extracted);
+    setShowCodeApprovalModal(true);
+  }, [loadedTemplate, radiologyCodes]);
+
   const handleCopy = () => {
     const textToCopy = getPlainText(editorRef.current);
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    maybePromptStudyCode();
   };
-  
+
   const handleEnhanceWithAI = useCallback(async () => {
     const currentText = getPlainText(editorRef.current);
-    if (!currentText || isProcessingAI) return;
+    if (!currentText) return;
 
     // Store current state as raw input for potential training
     setLastRawText(currentText);
@@ -447,13 +426,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     // Open the new AI Refinement Modal
     setRefinementOriginalText(currentText);
     setShowRefinementModal(true);
-  }, [isProcessingAI]);
-
-  const handleAcceptAICorrection = (correctedText: string) => {
-    setText(correctedText.replace(/\n/g, '<br>'));
-    setShowAiResultModal(false);
-    setAiResult(null);
-  };
+  }, []);
 
   const handleRefinementComplete = (data: {
     originalReport: string;
@@ -468,6 +441,8 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     // Close refinement modal
     setShowRefinementModal(false);
     setRefinementOriginalText('');
+
+    maybePromptStudyCode();
   };
 
   const handleRefinementCancel = () => {
@@ -623,26 +598,28 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
                  if (draggedRangeRef.current.isPointInRange(range.startContainer, range.startOffset)) {
                      // Dropping inside itself, cancel
                      handleDragEnd();
-                     return; 
+                     return;
                  }
+            }
+
+            // Delete the original BEFORE inserting, through the undo stack:
+            // live Ranges auto-adjust to the mutation, and doing both halves
+            // via execCommand keeps the whole move reversible with Ctrl+Z.
+            if (isInternalDrag.current && draggedRangeRef.current) {
+                try {
+                    deleteRangeUndoable(draggedRangeRef.current);
+                } catch (err) {
+                    console.error("Failed to delete original text on drag-move", err);
+                }
             }
 
             const sel = window.getSelection();
             sel?.removeAllRanges();
             sel?.addRange(range);
-            
+
             const html = `<span class="text-dragged">${text.replace(/\n/g, '<br>')}</span>`;
             insertHtmlAtCursor(html);
-            
-            // Delete original content if internal move (simulate cut-paste)
-            if (isInternalDrag.current && draggedRangeRef.current) {
-                try {
-                    draggedRangeRef.current.deleteContents();
-                } catch (err) {
-                    console.error("Failed to delete original text on drag-move", err);
-                }
-            }
-            
+
             editorRef.current?.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
         }
     }
@@ -781,15 +758,6 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
   return (
     <div className="relative flex flex-col h-full rounded-lg overflow-hidden" style={{ backgroundColor: currentTheme.colors.bgSecondary, borderColor: currentTheme.colors.borderColor, borderWidth: '1px' }}>
-      {showAiResultModal && aiResult && (
-        <CorrectionModal
-            isOpen={showAiResultModal}
-            onClose={() => setShowAiResultModal(false)}
-            originalText={aiResult.original}
-            correctedText={aiResult.corrected}
-            onAccept={handleAcceptAICorrection}
-        />
-      )}
       <AIReportRefinementModal
         isOpen={showRefinementModal}
         originalText={refinementOriginalText}
@@ -885,27 +853,24 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             >
               <SmallMicrophoneIcon className={iconSize} />
             </button>
-            <button 
-              onClick={() => setMicrophoneSource(microphoneSource === 'local' ? 'remote' : 'local')} 
-              title={`Microphone source: ${microphoneSource === 'local' ? 'Local' : 'Remote (Android)'}`}
-              className={`${buttonPadding} rounded-lg flex items-center justify-center transition-colors text-xs font-semibold ${
-                microphoneSource === 'remote' 
-                  ? localRemoteAudioStream ? 'bg-blue-500 text-white' : 'bg-orange-600 text-white'
-                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-              }`}>
-              {microphoneSource === 'local' ? 'Local' : localRemoteAudioStream ? '📱' : '⚠️'}
-            </button>
-            <button 
-              onClick={() => setIsCorrectionMode(!isCorrectionMode)} 
+            <button
+              onClick={() => setIsCorrectionMode(!isCorrectionMode)}
               title={t('editor.correctionModeDesc')} 
               className={`${buttonPadding} rounded-lg flex items-center justify-center transition-colors ${isCorrectionMode ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
               <PencilIcon className={iconSize} />
             </button>
-            <button 
-              onClick={() => setIsSpellCheckOn(!isSpellCheckOn)} 
-              title={t('editor.spellCheckDesc')} 
+            <button
+              onClick={() => setIsSpellCheckOn(!isSpellCheckOn)}
+              title={t('editor.spellCheckDesc')}
               className={`${buttonPadding} rounded-lg flex items-center justify-center transition-colors ${isSpellCheckOn ? 'bg-green-500 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'}`}>
               <CheckBadgeIcon className={iconSize}/>
+            </button>
+            <button
+              onClick={handleGrammarCheck}
+              disabled={!hasText || isCheckingGrammar}
+              title={t('editor.grammar.check', 'AI grammar check')}
+              className={`${buttonPadding} rounded-lg flex items-center justify-center transition-colors ${grammarErrors.length > 0 ? 'bg-red-500/80 text-white' : 'bg-gray-700 text-gray-400 hover:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+              {isCheckingGrammar ? <SpinnerIcon className={iconSize}/> : <DocumentTextIcon className={iconSize}/>}
             </button>
             {lastRawText && (
                <button
@@ -960,12 +925,12 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
             </div>
 
             <button
-                onClick={handleEnhanceWithAI} 
-                disabled={!hasText || isProcessingAI} 
+                onClick={handleEnhanceWithAI}
+                disabled={!hasText}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-600/20 text-blue-300 border border-blue-500/30 rounded-md hover:bg-blue-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title={`${t('editor.enhanceAI')} (${hotkeys.triggerAI})`}
               >
-                  {isProcessingAI ? <SpinnerIcon className="h-4 w-4"/> : <SparklesIcon className="h-4 w-4"/>}
+                  <SparklesIcon className="h-4 w-4"/>
                   <span className={layoutDensity === 'compact' ? 'hidden lg:inline' : 'hidden sm:inline'}>{t('editor.enhanceAI')}</span>
               </button>
           </div>

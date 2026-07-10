@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useMemo } from 'react';
 import type { StudyType, Template } from '../types';
-import { DragHandleIcon, PencilIcon, TrashIcon, ChevronDownIcon, DuplicateIcon, SearchIcon, XCircleIcon, PlusIcon } from './Icons';
+import { DragHandleIcon, PencilIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, DuplicateIcon, SearchIcon, XCircleIcon, PlusIcon } from './Icons';
 import { useTranslations } from '../context/LanguageContext';
 import { useTemplate } from '../context/TemplateContext';
 import { useApp } from '../context/AppContext';
@@ -13,9 +13,9 @@ interface StudyTypesAndTemplatesPanelProps {
 }
 
 const StudyTypesAndTemplatesPanel: React.FC<StudyTypesAndTemplatesPanelProps> = ({ onSelectTemplate, onPreviewTemplate }) => {
-  const { 
-      templates, studyTypes, addStudyType, updateStudyType, 
-      deleteStudyType, reorderStudyTypes, cloneTemplate, deleteTemplate, reorderTemplates
+  const {
+      templates, studyTypes, addStudyType, updateStudyType,
+      deleteStudyType, reorderStudyTypes, cloneTemplate, deleteTemplate, reorderTemplates, moveTemplate
   } = useTemplate();
   const { templateModal: { setEditingTemplate, setIsOpen: setIsModalOpen } } = useApp();
   const { currentTheme } = useTheme();
@@ -148,6 +148,12 @@ const StudyTypesAndTemplatesPanel: React.FC<StudyTypesAndTemplatesPanelProps> = 
           </div>
       </div>
       <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+          {!searchQuery.trim() && (
+            <>
+              <button onClick={(e) => handleActionClick(e, () => moveTemplate(template.id, 'up'))} className="p-1.5 rounded transition-all template-btn-icon" title={t('templates.moveUp', 'Move up')} style={{ color: currentTheme.colors.textSecondary }}><ChevronUpIcon className="h-4 w-4" /></button>
+              <button onClick={(e) => handleActionClick(e, () => moveTemplate(template.id, 'down'))} className="p-1.5 rounded transition-all template-btn-icon" title={t('templates.moveDown', 'Move down')} style={{ color: currentTheme.colors.textSecondary }}><ChevronDownIcon className="h-4 w-4" /></button>
+            </>
+          )}
           <button onClick={(e) => handleEditTemplate(e, template)} className="p-1.5 rounded transition-all template-btn-icon" title={t('templates.edit')} style={{ color: currentTheme.colors.textSecondary }}><PencilIcon /></button>
           <button onClick={(e) => handleCloneTemplate(e, template)} className="p-1.5 rounded transition-all template-btn-icon" title={t('templates.clone')} style={{ color: currentTheme.colors.textSecondary }}><DuplicateIcon /></button>
           <button onClick={(e) => handleDeleteTemplate(e, template)} className="p-1.5 rounded transition-all template-btn-icon" title={t('templates.delete')} style={{ color: currentTheme.colors.textSecondary }}><TrashIcon /></button>

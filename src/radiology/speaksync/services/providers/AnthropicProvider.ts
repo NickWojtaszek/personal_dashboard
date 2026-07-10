@@ -24,7 +24,7 @@ export class AnthropicProvider implements AIProvider {
   private model: string;
   private endpoint: string;
 
-  constructor(apiKey: string, model: string = 'claude-3-opus-20240229', endpoint?: string) {
+  constructor(apiKey: string, model: string = 'claude-sonnet-5', endpoint?: string) {
     if (!apiKey) {
       throw new AIProviderError('API key is required', 'Anthropic');
     }

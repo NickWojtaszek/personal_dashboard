@@ -31,6 +31,7 @@ const PAGE_LABELS: Record<Page, string> = {
     vehicles: 'Rego',
     contracts: 'Contracts',
     correspondence: 'Email',
+    documents: 'Documents',
     radiology: 'Radiology',
     dictation: 'Dictation',
 };

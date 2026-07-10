@@ -14,44 +14,73 @@ export const getPlainText = (element: HTMLElement | null): string => {
 };
 
 /**
- * Inserts HTML content at the current cursor position (caret) using modern Range/Selection API.
- * Replaces document.execCommand('insertHTML').
+ * Inserts HTML content at the current cursor position (caret).
+ *
+ * Uses document.execCommand('insertHTML') when available: despite being
+ * deprecated it is supported by every current browser, and it is the ONLY
+ * insertion path that participates in the contentEditable's native undo
+ * stack — Range.insertNode edits are invisible to Ctrl+Z and break undo of
+ * the surrounding typing. Falls back to the Range API where execCommand is
+ * missing or refuses.
  * @param html The HTML string to insert (will be sanitized for XSS protection).
  */
 export const insertHtmlAtCursor = (html: string): void => {
     const sel = window.getSelection();
-    if (sel && sel.rangeCount) {
-        const range = sel.getRangeAt(0);
-        range.deleteContents();
+    if (!sel || !sel.rangeCount) return;
 
-        // Sanitize HTML to prevent XSS attacks
-        const sanitizedHtml = DOMPurify.sanitize(html, {
-            ALLOWED_TAGS: ['span', 'br', 'p', 'strong', 'em', 'u', 'b', 'i'],
-            ALLOWED_ATTR: ['class', 'style', 'data-error-id'],
-            ALLOW_DATA_ATTR: true
-        });
+    // Sanitize HTML to prevent XSS attacks
+    const sanitizedHtml = DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['span', 'br', 'p', 'strong', 'em', 'u', 'b', 'i'],
+        ALLOWED_ATTR: ['class', 'style', 'data-error-id'],
+        ALLOW_DATA_ATTR: true
+    });
 
-        // Create a temporary element to parse the sanitized HTML string
-        const el = document.createElement("div");
-        el.innerHTML = sanitizedHtml;
-        
-        const frag = document.createDocumentFragment();
-        let node;
-        let lastNode;
-        while ((node = el.firstChild)) {
-            lastNode = frag.appendChild(node);
-        }
+    if (typeof document.execCommand === 'function') {
+        try {
+            if (document.execCommand('insertHTML', false, sanitizedHtml)) return;
+        } catch { /* fall through to Range fallback */ }
+    }
 
-        range.insertNode(frag);
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
 
-        // Move cursor to the end of the inserted content
-        if (lastNode) {
-            range.setStartAfter(lastNode);
-            range.collapse(true);
+    // Create a temporary element to parse the sanitized HTML string
+    const el = document.createElement("div");
+    el.innerHTML = sanitizedHtml;
+
+    const frag = document.createDocumentFragment();
+    let node;
+    let lastNode;
+    while ((node = el.firstChild)) {
+        lastNode = frag.appendChild(node);
+    }
+
+    range.insertNode(frag);
+
+    // Move cursor to the end of the inserted content
+    if (lastNode) {
+        range.setStartAfter(lastNode);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+};
+
+/**
+ * Deletes the contents of a Range through the native undo stack.
+ * Selects the range and issues execCommand('delete') so Ctrl+Z can restore
+ * it; falls back to Range.deleteContents() (non-undoable) if unavailable.
+ */
+export const deleteRangeUndoable = (range: Range): void => {
+    const sel = window.getSelection();
+    if (sel && typeof document.execCommand === 'function') {
+        try {
             sel.removeAllRanges();
             sel.addRange(range);
-        }
+            if (document.execCommand('delete')) return;
+        } catch { /* fall through */ }
     }
+    range.deleteContents();
 };
 
 /**

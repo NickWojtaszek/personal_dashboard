@@ -29,7 +29,7 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
   templateId,
   templateHeader
 }) => {
-  const { t, language } = useTranslations();
+  const { t, language, supportedLanguages } = useTranslations();
   const { currentTheme } = useTheme();
   const { aiPromptConfig, styleExamples } = useSettings();
 
@@ -70,7 +70,7 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
 
   const { isListening, interimText, toggleListen, isSupported: isDictationSupported } = useSpeechRecognition({
     onTranscriptFinalized: onDictationFinalized,
-    lang: language,
+    lang: supportedLanguages[language].speechCode,
   });
 
   // Reset state when modal opens

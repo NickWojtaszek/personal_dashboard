@@ -9,7 +9,6 @@ import SnippetPalette from '../components/SnippetPalette';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { hasMacros } from '../utils/templateMacros';
 import PlannerView from '../components/planner/PlannerView';
-import ReportGenerator from '../components/studyManager/ReportGenerator';
 import ReportSubmissionPage from '../pages/ReportSubmissionPage';
 
 import ViewContainer from '../components/ViewContainer';
@@ -48,7 +47,6 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
     const [mainLayout, setMainLayout] = useState<'columns' | 'rows'>('columns');
     const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
     const [previewTemplateId, setPreviewTemplateId] = useState<string | null>(null);
-    const [remoteAudioStream, setRemoteAudioStream] = useState<MediaStream | null>(null);
     const [previewTemplateTitle, setPreviewTemplateTitle] = useState<string>('');
     const [codesEditingCode, setCodesEditingCode] = useState<RadiologyCode | null>(null);
     const [codesFormData, setCodesFormData] = useState<RadiologyCode | null>(null);
@@ -345,7 +343,6 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
                                     comparisonText={comparisonText}
                                     setComparisonText={setComparisonText}
                                     comparisonTitle={previewTemplateTitle}
-                                    remoteAudioStream={remoteAudioStream}
                                 />
                             </div>
                         </div>
@@ -393,7 +390,7 @@ const MainPage: React.FC<{ hideHeader?: boolean; activeTabOverride?: MainTab; on
                                 onClick={() => handleTabChange(tab)}
                                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
                                     activeTab === tab
-                                    ? null
+                                    ? 'bg-blue-600 text-white shadow'
                                     : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700'
                                 }`}
                             >

@@ -5,6 +5,7 @@ import { initialAIPromptConfigs } from '../data/promptData';
 import { useStorage } from '../hooks/useStorage';
 import { useTranslations } from './LanguageContext';
 import { initializeAIService } from '../services/aiService';
+import { GEMINI_FLASH_MODEL } from '../constants';
 
 interface SettingsContextType {
     customCommands: CustomCommand[];
@@ -32,6 +33,23 @@ interface SettingsContextType {
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
+/** Model IDs that shipped as defaults but never existed — heal them in stored settings. */
+const BROKEN_GEMINI_MODELS = new Set(['gemini-3.5-flash']);
+
+const sanitizeAISettings = (settings: AISettings): AISettings => {
+    if (!settings.providers?.some(p => p.type === 'gemini' && BROKEN_GEMINI_MODELS.has(p.model))) {
+        return settings;
+    }
+    return {
+        ...settings,
+        providers: settings.providers.map(p =>
+            p.type === 'gemini' && BROKEN_GEMINI_MODELS.has(p.model)
+                ? { ...p, model: GEMINI_FLASH_MODEL }
+                : p
+        ),
+    };
+};
+
 const initialSettingsData: SettingsData = {
     customCommands: [],
     colorSettings: { voice: '#86efac', pasted: '#93c5fd', dragged: '#fde047' },
@@ -42,7 +60,7 @@ const initialSettingsData: SettingsData = {
             name: 'Google Gemini',
             type: 'gemini' as const,
             apiKey: '',
-            model: 'gemini-3.5-flash',
+            model: GEMINI_FLASH_MODEL,
             enabled: true
         }],
         defaultProvider: 'gemini-default',
@@ -147,9 +165,19 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const hotkeys = data.hotkeys || initialSettingsData.hotkeys;
 
+    // One-time heal: stored settings may still carry a broken model id from an old default
+    useEffect(() => {
+        if (loading) return;
+        setData(prev => {
+            const current = prev.aiSettings || initialSettingsData.aiSettings;
+            const fixed = sanitizeAISettings(current);
+            return fixed === current ? prev : { ...prev, aiSettings: fixed };
+        });
+    }, [loading]);
+
     // Initialize AI service whenever AI settings change
     useEffect(() => {
-        const aiSettings = data.aiSettings || initialSettingsData.aiSettings;
+        const aiSettings = sanitizeAISettings(data.aiSettings || initialSettingsData.aiSettings);
         initializeAIService(aiSettings);
     }, [data.aiSettings]);
 

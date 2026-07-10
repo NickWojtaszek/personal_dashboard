@@ -9,16 +9,17 @@ interface InvoiceRowProps {
     onSelect: (id: string) => void; // For viewing PDF
     isDragging?: boolean;
     listeners?: any;
+    style?: React.CSSProperties; // dnd-kit transform/transition while dragging
 }
 
 const GripVerticalIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1" /><circle cx="9" cy="5" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="19" r="1" /></svg>);
 
-const InvoiceRow = React.forwardRef<HTMLTableRowElement, InvoiceRowProps>(({ invoice, onEdit, onSelect, isDragging, listeners }, ref) => {
+const InvoiceRow = React.forwardRef<HTMLTableRowElement, InvoiceRowProps>(({ invoice, onEdit, onSelect, isDragging, listeners, style }, ref) => {
     const opacity = isDragging ? 'opacity-50' : '';
     const isAdminMode = !!listeners;
 
     return (
-        <tr ref={ref} className={`${opacity}`}>
+        <tr ref={ref} style={style} className={`${opacity}`}>
             {isAdminMode && (
                 <td className="px-2 text-center">
                     <button {...listeners} className="cursor-grab p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><GripVerticalIcon/></button>

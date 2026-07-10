@@ -9,7 +9,7 @@ import type { Report, AccountingProcessing } from '../types';
 import Specification from './studyManager/report/Specification';
 import Invoice from './studyManager/report/Invoice';
 import Summary from './studyManager/report/Summary';
-import type { ReportData } from './studyManager/ReportGenerator';
+import type { ReportData } from '../utils/reportPoints';
 import { initialRadiologyCodes } from '../data/radiologyCodes';
 
 const AccountingDashboard: React.FC = () => {
@@ -134,10 +134,17 @@ const AccountingDashboard: React.FC = () => {
       groupedByCode
     };
 
-    const statusColor = {
-      received: 'yellow',
-      processed: 'blue',
-      sent_to_bank: 'green'
+    // Static class/color maps — Tailwind's JIT only emits classes it can see
+    // as complete literals, so no `bg-${color}-600` template interpolation.
+    const statusBadgeStyle = {
+      received: { backgroundColor: 'rgba(113, 63, 18, 0.5)', color: '#fde047' },      // yellow-900/50, yellow-300
+      processed: { backgroundColor: 'rgba(30, 58, 138, 0.5)', color: '#93c5fd' },     // blue-900/50, blue-300
+      sent_to_bank: { backgroundColor: 'rgba(20, 83, 45, 0.5)', color: '#86efac' },   // green-900/50, green-300
+    } as const;
+    const statusButtonClass = {
+      received: { active: 'bg-yellow-600 text-white', inactive: 'bg-yellow-900/30 text-yellow-300 hover:opacity-80' },
+      processed: { active: 'bg-blue-600 text-white', inactive: 'bg-blue-900/30 text-blue-300 hover:opacity-80' },
+      sent_to_bank: { active: 'bg-green-600 text-white', inactive: 'bg-green-900/30 text-green-300 hover:opacity-80' },
     } as const;
 
     return (
@@ -161,10 +168,7 @@ const AccountingDashboard: React.FC = () => {
                 </span>
                 <span
                   className={`text-xs px-2 py-1 rounded font-semibold`}
-                  style={{
-                    backgroundColor: `${statusColor[accounting?.status || 'received']}900/50`,
-                    color: `${statusColor[accounting?.status || 'received']}300`
-                  }}
+                  style={statusBadgeStyle[accounting?.status || 'received']}
                 >
                   {accounting?.status?.replace('_', ' ').toUpperCase() || 'RECEIVED'}
                 </span>
@@ -228,8 +232,8 @@ const AccountingDashboard: React.FC = () => {
                     onClick={() => handleStatusChange(report.id, status)}
                     className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
                       accounting?.status === status
-                        ? `bg-${statusColor[status]}-600 text-white`
-                        : `bg-${statusColor[status]}-900/30 text-${statusColor[status]}-300 hover:opacity-80`
+                        ? statusButtonClass[status].active
+                        : statusButtonClass[status].inactive
                     }`}
                   >
                     {status.replace('_', ' ').charAt(0).toUpperCase() + status.replace('_', ' ').slice(1)}

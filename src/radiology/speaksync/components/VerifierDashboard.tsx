@@ -8,7 +8,7 @@ import type { Report, VerificationRecord, Study, RadiologyCode } from '../types'
 import Specification from './studyManager/report/Specification';
 import Invoice from './studyManager/report/Invoice';
 import Summary from './studyManager/report/Summary';
-import type { ReportData } from './studyManager/ReportGenerator';
+import type { ReportData } from '../utils/reportPoints';
 import { initialRadiologyCodes } from '../data/radiologyCodes';
 import AccountingSubmissionModal from './AccountingSubmissionModal';
 

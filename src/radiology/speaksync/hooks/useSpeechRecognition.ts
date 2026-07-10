@@ -10,10 +10,9 @@ interface UseSpeechRecognitionProps {
     onTranscriptFinalized: (transcript: string) => void;
     lang: string;
     vocabulary?: string[]; // Optional list of words to prioritize
-    remoteAudioStream?: MediaStream; // Optional remote audio stream from Android phone
 }
 
-export const useSpeechRecognition = ({ onTranscriptFinalized, lang, vocabulary = [], remoteAudioStream }: UseSpeechRecognitionProps) => {
+export const useSpeechRecognition = ({ onTranscriptFinalized, lang, vocabulary = [] }: UseSpeechRecognitionProps) => {
     const [isListening, setIsListening] = useState(false);
     const [interimText, setInterimText] = useState('');
     const [error, setError] = useState<string | null>(null);
@@ -21,8 +20,6 @@ export const useSpeechRecognition = ({ onTranscriptFinalized, lang, vocabulary =
     const recognitionRef = useRef<ISpeechRecognition | null>(null);
     const intentionalStop = useRef(false);
     const wakeLockRef = useRef<WakeLockSentinel | null>(null);
-    const audioContextRef = useRef<AudioContext | null>(null);
-    const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
 
     const requestWakeLock = async () => {
         if ('wakeLock' in navigator) {
@@ -62,29 +59,9 @@ export const useSpeechRecognition = ({ onTranscriptFinalized, lang, vocabulary =
         stop(); // Stop any existing instance
 
         try {
-            // Use remote audio stream if available, otherwise request local microphone
-            let audioStream: MediaStream;
-            
-            if (remoteAudioStream) {
-                audioStream = remoteAudioStream;
-                console.log('Using remote audio stream');
-            } else {
-                // Quick permission check without starting the stream
-                audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                console.log('Using local microphone');
-            }
-
-            // Setup audio context for processing remote audio if needed
-            if (remoteAudioStream && !audioContextRef.current) {
-                try {
-                    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-                    audioSourceRef.current = audioContextRef.current.createMediaStreamSource(remoteAudioStream);
-                    // Note: Web Speech API will use the remote stream when it's passed through getUserMedia
-                    console.log('Audio context created for remote stream');
-                } catch (err) {
-                    console.warn('Could not create audio context:', err);
-                }
-            }
+            // Quick permission check without starting the stream — the Web
+            // Speech API always captures from the OS default microphone.
+            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
             recognitionRef.current = new SpeechRecognitionAPI();
             const recognition = recognitionRef.current;
@@ -162,15 +139,13 @@ export const useSpeechRecognition = ({ onTranscriptFinalized, lang, vocabulary =
             
             recognition.start();
 
-            // Cleanup local stream if using local mic
-            if (!remoteAudioStream) {
-                audioStream.getTracks().forEach(track => track.stop());
-            }
+            // Release the permission-check stream; recognition uses its own capture
+            audioStream.getTracks().forEach(track => track.stop());
         } catch (err) {
             setError('Permission denied');
             console.error("Mic permission error:", err);
         }
-    }, [lang, stop, onTranscriptFinalized, isAlwaysOn, vocabulary, remoteAudioStream]);
+    }, [lang, stop, onTranscriptFinalized, isAlwaysOn, vocabulary]);
 
     const toggleListen = useCallback(() => {
         isListening ? stop() : start();
@@ -181,12 +156,6 @@ export const useSpeechRecognition = ({ onTranscriptFinalized, lang, vocabulary =
         return () => {
             stop();
             releaseWakeLock();
-            if (audioSourceRef.current) {
-                audioSourceRef.current.disconnect();
-            }
-            if (audioContextRef.current) {
-                audioContextRef.current.close();
-            }
         };
     }, [stop]);
 
@@ -197,7 +166,6 @@ export const useSpeechRecognition = ({ onTranscriptFinalized, lang, vocabulary =
         toggleListen,
         isAlwaysOn,
         setIsAlwaysOn,
-        isSupported: !!SpeechRecognitionAPI,
-        usingRemoteAudio: !!remoteAudioStream
+        isSupported: !!SpeechRecognitionAPI
     };
 };
