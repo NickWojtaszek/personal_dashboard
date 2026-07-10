@@ -191,6 +191,13 @@ export interface StudyData {
   plannedDays: Record<string, PlanStatus>;
 }
 
+/** A reusable #-directive: one click injects `prompt` as an AI instruction. */
+export interface DirectivePreset {
+  id: string;
+  label: string;   // short button text, e.g. "RECIST"
+  prompt: string;  // the directive body, e.g. "wylicz SLD i kategorię odpowiedzi wg RECIST 1.1"
+}
+
 export interface SettingsData {
   customCommands: CustomCommand[];
   colorSettings: ColorSettings;
@@ -200,6 +207,7 @@ export interface SettingsData {
   styleExamples: StyleExample[];
   aiSettings: AISettings;
   dictation?: DictationSettings;
+  directivePresets?: DirectivePreset[];
 }
 
 export type UserProfile = TemplateData & StudyData & SettingsData;

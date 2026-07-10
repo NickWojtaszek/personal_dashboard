@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useCallback, useEffect } from 'react';
-import type { CustomCommand, AIPromptConfig, ColorSettings, SettingsData, LayoutDensity, HotkeysConfig, StyleExample, AISettings, DictationSettings } from '../types';
+import type { CustomCommand, AIPromptConfig, ColorSettings, SettingsData, LayoutDensity, HotkeysConfig, StyleExample, AISettings, DictationSettings, DirectivePreset } from '../types';
 import { initialAIPromptConfigs } from '../data/promptData';
 import { useStorage } from '../hooks/useStorage';
 import { useTranslations } from './LanguageContext';
@@ -21,6 +21,8 @@ interface SettingsContextType {
     setLayoutDensity: (density: LayoutDensity) => void;
     hotkeys: HotkeysConfig;
     setHotkeys: (hotkeys: HotkeysConfig) => void;
+    directivePresets: DirectivePreset[];
+    setDirectivePresets: (presets: DirectivePreset[]) => void;
     styleExamples: StyleExample[];
     addStyleExample: (raw: string, final: string) => void;
     removeStyleExample: (id: string) => void;
@@ -32,6 +34,13 @@ interface SettingsContextType {
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
+
+/** Seeded quick AI injections — editable in Settings; # stays for ad-hoc ones. */
+export const DEFAULT_DIRECTIVE_PRESETS: DirectivePreset[] = [
+    { id: 'preset-recist', label: 'RECIST', prompt: 'wylicz SLD i kategorię odpowiedzi wg RECIST 1.1' },
+    { id: 'preset-fleischner', label: 'Follow-up guzka', prompt: 'zaproponuj harmonogram kontroli guzka płucnego wg wytycznych Fleischnera' },
+    { id: 'preset-tnm', label: 'TNM', prompt: 'określ cechy T, N i M na podstawie opisu badania' },
+];
 
 /** Model IDs that shipped as defaults but never existed — heal them in stored settings. */
 const BROKEN_GEMINI_MODELS = new Set(['gemini-3.5-flash']);
@@ -161,6 +170,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setData(prev => ({ ...prev, dictation: newSettings }));
     };
 
+    const setDirectivePresets = (presets: DirectivePreset[]) => {
+        setData(prev => ({ ...prev, directivePresets: presets }));
+    };
+
     const isStyleTrainingLimitReached = (data.styleExamples || []).length >= 20;
 
     const hotkeys = data.hotkeys || initialSettingsData.hotkeys;
@@ -203,6 +216,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isStyleTrainingLimitReached,
         dictation: data.dictation || initialSettingsData.dictation!,
         setDictation,
+        directivePresets: data.directivePresets ?? DEFAULT_DIRECTIVE_PRESETS,
+        setDirectivePresets,
     };
 
     return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

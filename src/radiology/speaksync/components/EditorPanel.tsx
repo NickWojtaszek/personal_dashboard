@@ -93,7 +93,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 }) => {
   const { t, language, supportedLanguages } = useTranslations();
   const { currentTheme } = useTheme();
-  const { customCommands, addOrUpdateCustomCommand, aiPromptConfig, layoutDensity, hotkeys, styleExamples, addStyleExample, isStyleTrainingLimitReached, dictation } = useSettings();
+  const { customCommands, addOrUpdateCustomCommand, aiPromptConfig, layoutDensity, hotkeys, styleExamples, addStyleExample, isStyleTrainingLimitReached, dictation, directivePresets } = useSettings();
   const [trainingTick, setTrainingTick] = useState(0);
   const { studies, addStudy, radiologyCodes } = useStudy();
   const { currentStudyFilter } = useTemplate();
@@ -102,6 +102,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   const [isCorrectionMode, setIsCorrectionMode] = useState<boolean>(false);
 
   const [showRefinementModal, setShowRefinementModal] = useState<boolean>(false);
+  const [showPresetMenu, setShowPresetMenu] = useState<boolean>(false);
   const [refinementOriginalText, setRefinementOriginalText] = useState<string>('');
   const [showCodeApprovalModal, setShowCodeApprovalModal] = useState<boolean>(false);
   const [extractedCodeData, setExtractedCodeData] = useState<{ code: string; codeData: any } | null>(null);
@@ -901,6 +902,35 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
           </div>
           
           <div className="flex items-center justify-end gap-2">
+            {directivePresets.filter(p => p.label.trim() && p.prompt.trim()).length > 0 && (
+                <div className="relative">
+                    <button
+                        onClick={() => setShowPresetMenu(v => !v)}
+                        disabled={!hasText}
+                        className="flex items-center gap-1 px-2 py-1.5 text-sm bg-purple-600/20 text-purple-300 border border-purple-500/30 rounded-md hover:bg-purple-600/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Insert a quick AI directive (#) — executed on next Enhance"
+                    >
+                        ⚡<span className={layoutDensity === 'compact' ? 'hidden xl:inline' : 'hidden lg:inline'}>#</span>
+                    </button>
+                    {showPresetMenu && (
+                        <div className="absolute right-0 top-full mt-1 z-30 w-64 bg-gray-800 border border-gray-600 rounded-lg shadow-xl py-1">
+                            {directivePresets.filter(p => p.label.trim() && p.prompt.trim()).map(p => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => {
+                                        setText(prev => `${prev}${prev ? '<br>' : ''}#${p.prompt.replace(/&/g, '&amp;').replace(/</g, '&lt;')}`);
+                                        setShowPresetMenu(false);
+                                    }}
+                                    className="w-full text-left px-3 py-1.5 text-sm text-gray-200 hover:bg-gray-700"
+                                    title={`#${p.prompt}`}
+                                >
+                                    ⚡ {p.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
             <div className="hidden xl:flex items-center gap-2 mr-2">
                 {/* Day Stats Box */}
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-600/50 bg-gray-700/30 text-sm">

@@ -77,7 +77,7 @@ const SettingsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
   const { currentTheme } = useTheme();
   const {
       customCommands, setCustomCommands, aiPromptConfig, setAiPromptConfig, colorSettings, setColorSettings,
-      layoutDensity, setLayoutDensity, hotkeys, setHotkeys
+      layoutDensity, setLayoutDensity, hotkeys, setHotkeys, directivePresets, setDirectivePresets
   } = useSettings();
   const {
       clearTemplateData, importTemplates, importTexterTemplates, exportTemplates
@@ -507,6 +507,45 @@ const SettingsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <ToggleSwitch label={t('settings.recistAnalysis')} description={t('settings.recistAnalysisDesc')} enabled={aiPromptConfig.useRECIST} onChange={() => handlePromptConfigChange('useRECIST', !aiPromptConfig.useRECIST)} />
                             <ToggleSwitch label={t('settings.tnmClassification')} description={t('settings.tnmClassificationDesc')} enabled={aiPromptConfig.useTNM} onChange={() => handlePromptConfigChange('useTNM', !aiPromptConfig.useTNM)} />
+                        </div>
+
+                        {/* Quick AI directives (# presets) */}
+                        <div className="mt-8 border-t border-gray-700 pt-6">
+                            <h3 className="text-lg font-semibold text-gray-100 mb-1">Quick AI directives</h3>
+                            <p className="text-sm text-gray-400 mb-4">
+                                One-click #-injections shown next to the Enhance button and in the review modal.
+                                The label is the button text; the prompt is what the AI executes. Ad-hoc commands
+                                still work by dictating/typing <code className="text-gray-300">#polecenie</code> in the report.
+                            </p>
+                            <div className="space-y-2">
+                                {directivePresets.map(p => (
+                                    <div key={p.id} className="flex gap-2 items-center">
+                                        <input
+                                            type="text"
+                                            value={p.label}
+                                            onChange={e => setDirectivePresets(directivePresets.map(x => x.id === p.id ? { ...x, label: e.target.value } : x))}
+                                            placeholder="Label"
+                                            className="w-40 px-2 py-1.5 text-sm bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                        <input
+                                            type="text"
+                                            value={p.prompt}
+                                            onChange={e => setDirectivePresets(directivePresets.map(x => x.id === p.id ? { ...x, prompt: e.target.value } : x))}
+                                            placeholder="Prompt executed by the AI"
+                                            className="flex-1 px-2 py-1.5 text-sm bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+                                        />
+                                        <button
+                                            onClick={() => setDirectivePresets(directivePresets.filter(x => x.id !== p.id))}
+                                            className="px-2 py-1.5 text-sm text-red-400 hover:bg-gray-700 rounded"
+                                            title="Delete preset"
+                                        >✕</button>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={() => setDirectivePresets([...directivePresets, { id: crypto.randomUUID(), label: '', prompt: '' }])}
+                                    className="px-3 py-1.5 text-sm bg-gray-700 hover:bg-gray-600 text-gray-200 rounded"
+                                >+ Add preset</button>
+                            </div>
                         </div>
 
                         {/* AI Style Learning Management */}
