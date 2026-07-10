@@ -4,7 +4,7 @@ import { EnvelopeIcon, EditIcon, SaveIcon, TrashIcon, PlusIcon, PaperClipIcon } 
 import { v4 as uuidv4 } from 'uuid';
 import GmailSyncConfigPanel from './GmailSyncConfigPanel';
 import { getCategoryActiveColor, CATEGORY_UNSELECTED } from '../../lib/categoryColors';
-import { syncGmailForProperty, clearGmailCorrespondence } from '../../lib/gmailSync';
+import { syncGmailForProperty, clearGmailCorrespondence, emailMatchesRule } from '../../lib/gmailSync';
 import { getAttachment, isGmailAuthenticated, signInWithGmail } from '../../lib/gmail';
 import { extractFromBase64, type ExtractedPropertyData } from '../../lib/extractPropertyData';
 
@@ -101,6 +101,11 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
 
     const syncConfig = property.gmailSync || DEFAULT_SYNC_CONFIG;
 
+    // Always-current property for saves after long awaits (sync, attachment
+    // fetches) — saving the closure snapshot clobbered concurrent edits.
+    const propertyRef = useRef(property);
+    useEffect(() => { propertyRef.current = property; });
+
     // handleExportCorrespondence defined after `sorted` memo below
 
     useEffect(() => {
@@ -149,7 +154,7 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
         setSyncMessage('');
         try {
             const result = await syncGmailForProperty(property.correspondence || [], syncConfig, fullSync, selectedRuleIds);
-            onSave({ ...property, correspondence: result.correspondence, gmailSync: result.syncConfig });
+            onSave({ ...propertyRef.current, correspondence: result.correspondence, gmailSync: result.syncConfig });
             setSyncMessage(result.newCount > 0 ? `Synced ${result.newCount} new email${result.newCount !== 1 ? 's' : ''}` : 'Up to date');
         } catch (err) {
             setSyncMessage(err instanceof Error ? err.message : 'Sync failed');
@@ -218,6 +223,8 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
             URL.revokeObjectURL(url);
         } catch (err) {
             console.error('Failed to download attachment:', err);
+            setExtractMessage('Failed to download attachment');
+            setTimeout(() => setExtractMessage(''), 5000);
         } finally {
             setDownloadingAttachment(null);
         }
@@ -235,6 +242,15 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
             await signInWithGmail();
         }
         const data = await getAttachment(messageId, attachment.id);
+        // Persist the bytes onto the correspondence item so the attachment stays
+        // openable offline / after token expiry. (The `cached` field existed but
+        // was never written.) The blob bridge offloads it to IndexedDB on save.
+        const updated = (propertyRef.current.correspondence || []).map(c =>
+            c.gmailMessageId === messageId
+                ? { ...c, attachments: c.attachments?.map(a => a.id === attachment.id ? { ...a, cached: data.data } : a) }
+                : c
+        );
+        onSave({ ...propertyRef.current, correspondence: updated });
         return data.data;
     };
 
@@ -289,6 +305,8 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
             setViewingPdf({ url, name: attachment.name });
         } catch (err) {
             console.error('Failed to load PDF:', err);
+            setExtractMessage('Failed to load PDF');
+            setTimeout(() => setExtractMessage(''), 5000);
         } finally {
             setLoadingPdfView(null);
         }
@@ -359,15 +377,12 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
             .sort((a, b) => a[0].localeCompare(b[0]));
     }, [allCorrespondence]);
 
-    // Map email 'from' to sync rule category by checking if the rule query appears in the from address
+    // Map email to sync rule category (shared matcher checks from AND to, so
+    // SENT replies get the same category pill as the incoming mail).
     const getEmailCategory = useCallback((email: CorrespondenceItem): SyncRuleCategory | null => {
-        const from = email.from.toLowerCase();
         for (const rule of syncConfig.rules) {
             if (!rule.category) continue;
-            const q = rule.query.toLowerCase();
-            if (from.includes(q) || q.includes(from.split('<').pop()?.replace('>', '').trim() || '')) {
-                return rule.category;
-            }
+            if (emailMatchesRule(email, rule)) return rule.category;
         }
         return null;
     }, [syncConfig.rules]);

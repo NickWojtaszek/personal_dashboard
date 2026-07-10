@@ -123,7 +123,9 @@ const EditPropertyModal: React.FC<EditPropertyModalProps> = ({ property, onSave,
         onSave({
             ...formData,
             groups: Array.from(selectedGroups),
-            financials: { transactions: transactions }
+            // Preserve purchase price / valuation / tax fields — only transactions
+            // are edited here. Replacing the whole object wiped the rest.
+            financials: { ...formData.financials, transactions }
         });
     };
     

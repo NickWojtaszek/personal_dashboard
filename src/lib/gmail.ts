@@ -126,9 +126,12 @@ export function handleGmailRedirectResult(): boolean {
  * Redirects the user to Google, then back to the current page with a token.
  */
 export async function signInWithGmail(): Promise<GmailToken> {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  // Injected by vite.config.ts `define` from GOOGLE_CLIENT_ID — same source as
+  // googleSheets.ts. (import.meta.env.VITE_GOOGLE_CLIENT_ID was never defined,
+  // which made every connect attempt fail.)
+  const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {
-    throw new Error('VITE_GOOGLE_CLIENT_ID is not set. Add it to your .env file.');
+    throw new Error('GOOGLE_CLIENT_ID is not set. Add it to your .env file.');
   }
 
   // If we already have a valid token, return it

@@ -265,9 +265,16 @@ const GmailSyncConfigPanel: React.FC<GmailSyncConfigPanelProps> = ({
                       className="w-3 h-3 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 flex-shrink-0 cursor-pointer"
                       title="Include in sync"
                     />
-                    <code className="text-[11px] text-blue-600 dark:text-blue-400 truncate flex-1 min-w-0">
-                      {rule.query}
-                    </code>
+                    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                      {rule.label && (
+                        <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300 flex-shrink-0" title={rule.query}>
+                          {rule.label}
+                        </span>
+                      )}
+                      <code className="text-[11px] text-blue-600 dark:text-blue-400 truncate min-w-0">
+                        {rule.query}
+                      </code>
+                    </div>
                     <select
                       value={rule.category || ''}
                       onChange={e => handleUpdateRuleCategory(rule.id, e.target.value || undefined)}

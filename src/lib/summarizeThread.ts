@@ -233,7 +233,15 @@ async function callGemini<T>(prompt: string, schema: any = threadSummarySchema):
         },
     });
 
-    return JSON.parse(response.text.trim());
+    const jsonStr = response.text?.trim();
+    if (!jsonStr) {
+        throw new Error('AI returned an empty response (possibly blocked or truncated) — try again.');
+    }
+    try {
+        return JSON.parse(jsonStr);
+    } catch {
+        throw new Error('AI returned malformed data — try again.');
+    }
 }
 
 // ─── Public API ─────────────────────────────────────────────────────

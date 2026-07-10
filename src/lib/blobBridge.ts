@@ -21,8 +21,11 @@ const MIN_LONG_STR_SIZE = 500; // Strip string fields longer than this to Indexe
 
 /** Fields that contain large text content worth offloading.
  *  Note: 'body' was removed — email bodies are typically <10KB of text
- *  and the strip/rehydrate cycle is fragile when array indices shift. */
-const LONG_STRING_FIELDS = new Set(['timeline', 'extractedText', 'summary']);
+ *  and the strip/rehydrate cycle is fragile when array indices shift.
+ *  'cached' holds base64 email-attachment bytes — must not land in the
+ *  Supabase JSONB row; a rehydration miss yields '' and the UI re-fetches
+ *  from Gmail. */
+const LONG_STRING_FIELDS = new Set(['timeline', 'extractedText', 'summary', 'cached']);
 
 /**
  * Generate a stable key for a blob based on a path prefix and document name.

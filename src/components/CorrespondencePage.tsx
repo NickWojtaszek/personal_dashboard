@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { CorrespondenceStore, CorrespondenceItem, ConversationThread, GmailSyncConfig, SyncRuleCategory } from '../types';
 import { generateThread, updateThread, generateDraftReply, type DraftReply, type ThreadContext } from '../lib/summarizeThread';
-import { syncGmail, clearGmailCorrespondence } from '../lib/gmailSync';
-import { sendEmail, getMessage, isGmailAuthenticated, signInWithGmail } from '../lib/gmail';
+import { syncGmail, clearGmailCorrespondence, emailMatchesRule } from '../lib/gmailSync';
+import { sendEmail, getMessage, isGmailAuthenticated, signInWithGmail, signOutGmail } from '../lib/gmail';
 import { getCategoryPillColor, CATEGORY_UNSELECTED } from '../lib/categoryColors';
 import GmailSyncConfigPanel from './property-detail/GmailSyncConfigPanel';
 import { v4 as uuidv4 } from 'uuid';
@@ -164,6 +164,11 @@ const CorrespondencePage: React.FC<CorrespondencePageProps> = ({ store, onSave }
 
     const prevCorrespondenceCountRef = useRef(correspondence.length);
 
+    // Always-current store for saves after long awaits — saving the closure
+    // snapshot silently clobbered edits made while Gemini/Gmail calls ran.
+    const storeRef = useRef(store);
+    useEffect(() => { storeRef.current = store; });
+
     // ─── Gmail Sync ───────────────────────────────────────────────────
 
     const handleSyncNow = useCallback(async (fullSync = false, selectedRuleIds?: string[]) => {
@@ -172,7 +177,7 @@ const CorrespondencePage: React.FC<CorrespondencePageProps> = ({ store, onSave }
         try {
             if (!isGmailAuthenticated()) await signInWithGmail();
             const result = await syncGmail(correspondence, syncConfig, fullSync, selectedRuleIds);
-            onSave({ ...store, correspondence: result.correspondence, gmailSync: result.syncConfig });
+            onSave({ ...storeRef.current, correspondence: result.correspondence, gmailSync: result.syncConfig });
             setSyncMessage(result.newCount > 0 ? `Synced ${result.newCount} new email${result.newCount !== 1 ? 's' : ''}` : 'No new emails');
         } catch (err) {
             setSyncMessage(err instanceof Error ? err.message : 'Sync failed');
@@ -190,21 +195,13 @@ const CorrespondencePage: React.FC<CorrespondencePageProps> = ({ store, onSave }
         onSave({ ...store, gmailSync: config });
     }, [store, onSave]);
 
-    // ─── Email helpers ────────────────────────────────────────────────
-
-    const emailMatchesRule = useCallback((email: CorrespondenceItem, rule: { query: string }): boolean => {
-        const from = email.from.toLowerCase();
-        const to = (email.to || '').toLowerCase();
-        const q = rule.query.toLowerCase();
-        const fromEmail = from.split('<').pop()?.replace('>', '').trim() || '';
-        return from.includes(q) || q.includes(fromEmail) || to.includes(q);
-    }, []);
+    // ─── Email helpers (matcher shared via lib/gmailSync) ─────────────
 
     const getEmailsForCategory = useCallback((category: string) => {
         const rulesForCat = syncConfig.rules.filter(r => r.category === category);
         if (rulesForCat.length === 0) return [];
         return correspondence.filter(c => rulesForCat.some(rule => emailMatchesRule(c, rule)));
-    }, [correspondence, syncConfig.rules, emailMatchesRule]);
+    }, [correspondence, syncConfig.rules]);
 
     const getEmailsForThread = useCallback((thread: { category?: SyncRuleCategory; filterSenders?: string[] }) => {
         if (thread.category) return getEmailsForCategory(thread.category);
@@ -298,22 +295,32 @@ const CorrespondencePage: React.FC<CorrespondencePageProps> = ({ store, onSave }
         const currentCorrespondence = currentStore.correspondence;
         if (currentThreads.length === 0) return;
 
+        // One matcher for the scan and the per-thread collection (shared with
+        // the property sections via lib/gmailSync — the old inline copies
+        // diverged on the `to` check).
+        const rules = (currentStore.gmailSync || DEFAULT_SYNC_CONFIG).rules;
+        const emailsForThread = (thread: ConversationThread): CorrespondenceItem[] => {
+            if (thread.category) {
+                const rulesForCat = rules.filter(r => r.category === thread.category);
+                if (rulesForCat.length === 0) return [];
+                return currentCorrespondence.filter(c => rulesForCat.some(rule => emailMatchesRule(c, rule)));
+            }
+            if (thread.filterSenders?.length) {
+                return currentCorrespondence.filter(c => {
+                    const from = c.from.toLowerCase();
+                    const to = (c.to || '').toLowerCase();
+                    return thread.filterSenders!.some(s => {
+                        const sl = s.toLowerCase();
+                        return from.includes(sl) || to.includes(sl);
+                    });
+                });
+            }
+            return [];
+        };
+
         const threadsToUpdate = currentThreads.filter(thread => {
-            const allEmails = (() => {
-                if (thread.category) {
-                    const rulesForCat = (currentStore.gmailSync || DEFAULT_SYNC_CONFIG).rules.filter(r => r.category === thread.category);
-                    if (rulesForCat.length === 0) return [];
-                    return currentCorrespondence.filter(c =>
-                        rulesForCat.some(rule => { const from = c.from.toLowerCase(); const q = rule.query.toLowerCase(); return from.includes(q) || q.includes(from.split('<').pop()?.replace('>', '').trim() || ''); })
-                    );
-                }
-                if (thread.filterSenders?.length) {
-                    return currentCorrespondence.filter(c => { const from = c.from.toLowerCase(); const to = (c.to || '').toLowerCase(); return thread.filterSenders!.some(s => { const sl = s.toLowerCase(); return from.includes(sl) || to.includes(sl); }); });
-                }
-                return [];
-            })();
             const processedIds = new Set(thread.lastProcessedEmailIds || []);
-            return allEmails.some(e => !processedIds.has(e.id));
+            return emailsForThread(thread).some(e => !processedIds.has(e.id));
         });
 
         if (threadsToUpdate.length === 0) return;
@@ -323,20 +330,8 @@ const CorrespondencePage: React.FC<CorrespondencePageProps> = ({ store, onSave }
 
         for (const thread of threadsToUpdate) {
             try {
-                const allEmails = (() => {
-                    if (thread.category) {
-                        const rulesForCat = (currentStore.gmailSync || DEFAULT_SYNC_CONFIG).rules.filter(r => r.category === thread.category);
-                        return currentCorrespondence.filter(c =>
-                            rulesForCat.some(rule => { const from = c.from.toLowerCase(); const q = rule.query.toLowerCase(); return from.includes(q) || q.includes(from.split('<').pop()?.replace('>', '').trim() || ''); })
-                        );
-                    }
-                    if (thread.filterSenders?.length) {
-                        return currentCorrespondence.filter(c => { const from = c.from.toLowerCase(); return thread.filterSenders!.some(s => from.includes(s.toLowerCase())); });
-                    }
-                    return [];
-                })();
                 const processedIds = new Set(thread.lastProcessedEmailIds || []);
-                const newEmails = allEmails.filter(e => !processedIds.has(e.id));
+                const newEmails = emailsForThread(thread).filter(e => !processedIds.has(e.id));
                 if (newEmails.length > 0) {
                     const updated = await updateThread(thread, newEmails, THREAD_CONTEXT);
                     updatedThreads = updatedThreads.map(t => t.id === thread.id ? updated : t);
@@ -347,7 +342,8 @@ const CorrespondencePage: React.FC<CorrespondencePageProps> = ({ store, onSave }
             setUpdatingThreadIds(prev => { const next = new Set(prev); next.delete(thread.id); return next; });
         }
 
-        onSave({ ...currentStore, threads: updatedThreads });
+        // Save against the live store, not the pre-await snapshot.
+        onSave({ ...storeRef.current, threads: updatedThreads });
     }, [onSave]);
 
     useEffect(() => {
@@ -664,6 +660,15 @@ const CorrespondencePage: React.FC<CorrespondencePageProps> = ({ store, onSave }
                             <EnvelopeIcon className="w-4 h-4" /> Emails
                         </button>
                     </div>
+                    {isGmailAuthenticated() && (
+                        <button
+                            onClick={async () => { await signOutGmail(); setSyncMessage('Disconnected from Gmail'); }}
+                            className="px-3 py-1.5 text-sm font-medium rounded-lg text-slate-500 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-600 transition-colors"
+                            title="Revoke the Gmail token for this browser (synced emails stay)"
+                        >
+                            Disconnect Gmail
+                        </button>
+                    )}
                 </div>
             </div>
 

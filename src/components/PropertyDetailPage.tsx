@@ -663,20 +663,9 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                 {viewMode === 'metrics' && (
                     <FinancialHealthSection property={property} onSave={handleSave} />
                 )}
-                {viewMode === 'details' && (
-                <>
-                {/* Duplicate detection */}
-                {duplicateWarnings.length === 0 && (property.financials?.transactions?.length || 0) >= 2 && (
-                    <div className="flex justify-end">
-                        <button
-                            onClick={handleScanDuplicates}
-                            className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-                        >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
-                            Scan for duplicate transactions
-                        </button>
-                    </div>
-                )}
+                {/* Duplicate warnings — rendered in EVERY view: extraction is
+                    usually triggered from the Correspondence tab, where these
+                    used to be written to state but never shown. */}
                 {duplicateWarnings.length > 0 && (
                     <div className="space-y-2 mb-4">
                         <div className="flex items-center justify-between">
@@ -734,6 +723,20 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                                 </div>
                             </div>
                         ))}
+                    </div>
+                )}
+                {viewMode === 'details' && (
+                <>
+                {/* Duplicate detection — manual scan entry point */}
+                {duplicateWarnings.length === 0 && (property.financials?.transactions?.length || 0) >= 2 && (
+                    <div className="flex justify-end">
+                        <button
+                            onClick={handleScanDuplicates}
+                            className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                            Scan for duplicate transactions
+                        </button>
                     </div>
                 )}
 

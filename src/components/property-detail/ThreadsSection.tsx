@@ -3,6 +3,7 @@ import type { PropertyInfo, ConversationThread, CorrespondenceItem, SyncRuleCate
 import { PlusIcon, TrashIcon } from './Icons';
 import { generateThread, updateThread, generateDraftReply, type DraftReply } from '../../lib/summarizeThread';
 import { sendEmail, getMessage } from '../../lib/gmail';
+import { emailMatchesRule } from '../../lib/gmailSync';
 import { getCategoryPillColor, CATEGORY_UNSELECTED } from '../../lib/categoryColors';
 
 // ─── Inline Icons ────────────────────────────────────────────────────
@@ -203,24 +204,19 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
     // Track correspondence count to detect sync completions
     const prevCorrespondenceCountRef = useRef(allCorrespondence.length);
 
-    // Check if an email matches a sync rule query (checks both from and to for sent replies)
-    const emailMatchesRule = useCallback((email: CorrespondenceItem, rule: { query: string }): boolean => {
-        const from = email.from.toLowerCase();
-        const to = (email.to || '').toLowerCase();
-        const q = rule.query.toLowerCase();
-        const fromEmail = from.split('<').pop()?.replace('>', '').trim() || '';
-        // Match if the rule query appears in from OR to (captures sent replies)
-        return from.includes(q) || q.includes(fromEmail) || to.includes(q);
-    }, []);
+    // Always-current property for saves after long awaits — saving the closure
+    // snapshot silently clobbered any edit made while Gemini calls were in flight.
+    const propertyRef = useRef(property);
+    useEffect(() => { propertyRef.current = property; });
 
-    // Map email to its category tag (via matching sync rules)
+    // Map email to its category tag (via matching sync rules; shared matcher in lib/gmailSync)
     const getEmailCategory = useCallback((email: CorrespondenceItem): SyncRuleCategory | null => {
         for (const rule of syncConfig.rules) {
             if (!rule.category) continue;
             if (emailMatchesRule(email, rule)) return rule.category;
         }
         return null;
-    }, [syncConfig.rules, emailMatchesRule]);
+    }, [syncConfig.rules]);
 
     // Get all emails matching a category tag (matches ALL rules with that tag)
     const getEmailsForCategory = useCallback((category: string) => {
@@ -229,7 +225,7 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
         return allCorrespondence.filter(c =>
             rulesForCat.some(rule => emailMatchesRule(c, rule))
         );
-    }, [allCorrespondence, syncConfig.rules, emailMatchesRule]);
+    }, [allCorrespondence, syncConfig.rules]);
 
     // Tags defined on the sync config
     const availableTags = syncConfig.tags || [];
@@ -270,36 +266,32 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
         const currentCorrespondence = currentProperty.correspondence || [];
         if (currentThreads.length === 0) return;
 
+        // One matcher for both the "which threads need updating" scan and the
+        // per-thread email collection (was two divergent inline copies).
+        const rules = (currentProperty.gmailSync || DEFAULT_SYNC_CONFIG).rules;
+        const emailsForThread = (thread: ConversationThread): CorrespondenceItem[] => {
+            if (thread.category) {
+                const rulesForCat = rules.filter(r => r.category === thread.category);
+                if (rulesForCat.length === 0) return [];
+                return currentCorrespondence.filter(c => rulesForCat.some(rule => emailMatchesRule(c, rule)));
+            }
+            if (thread.filterSenders?.length) {
+                return currentCorrespondence.filter(c => {
+                    const from = c.from.toLowerCase();
+                    const to = (c.to || '').toLowerCase();
+                    return thread.filterSenders!.some(s => {
+                        const sl = s.toLowerCase();
+                        return from.includes(sl) || to.includes(sl);
+                    });
+                });
+            }
+            return [];
+        };
+
         // Find threads with new unprocessed emails
         const threadsToUpdate = currentThreads.filter(thread => {
-            const allEmails = (() => {
-                if (thread.category) {
-                    const rulesForCat = (currentProperty.gmailSync || DEFAULT_SYNC_CONFIG).rules.filter(r => r.category === thread.category);
-                    if (rulesForCat.length === 0) return [];
-                    return currentCorrespondence.filter(c =>
-                        rulesForCat.some(rule => {
-                            const from = c.from.toLowerCase();
-                            const to = (c.to || '').toLowerCase();
-                            const q = rule.query.toLowerCase();
-                            const fromEmail = from.split('<').pop()?.replace('>', '').trim() || '';
-                            return from.includes(q) || q.includes(fromEmail) || to.includes(q);
-                        })
-                    );
-                }
-                if (thread.filterSenders?.length) {
-                    return currentCorrespondence.filter(c => {
-                        const from = c.from.toLowerCase();
-                        const to = (c.to || '').toLowerCase();
-                        return thread.filterSenders!.some(s => {
-                            const sl = s.toLowerCase();
-                            return from.includes(sl) || to.includes(sl);
-                        });
-                    });
-                }
-                return [];
-            })();
             const processedIds = new Set(thread.lastProcessedEmailIds || []);
-            return allEmails.some(e => !processedIds.has(e.id));
+            return emailsForThread(thread).some(e => !processedIds.has(e.id));
         });
 
         if (threadsToUpdate.length === 0) return;
@@ -310,27 +302,8 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
 
         for (const thread of threadsToUpdate) {
             try {
-                const allEmails = (() => {
-                    if (thread.category) {
-                        const rulesForCat = (currentProperty.gmailSync || DEFAULT_SYNC_CONFIG).rules.filter(r => r.category === thread.category);
-                        return currentCorrespondence.filter(c =>
-                            rulesForCat.some(rule => {
-                                const from = c.from.toLowerCase();
-                                const q = rule.query.toLowerCase();
-                                return from.includes(q) || q.includes(from.split('<').pop()?.replace('>', '').trim() || '');
-                            })
-                        );
-                    }
-                    if (thread.filterSenders?.length) {
-                        return currentCorrespondence.filter(c => {
-                            const from = c.from.toLowerCase();
-                            return thread.filterSenders!.some(s => from.includes(s.toLowerCase()));
-                        });
-                    }
-                    return [];
-                })();
                 const processedIds = new Set(thread.lastProcessedEmailIds || []);
-                const newEmails = allEmails.filter(e => !processedIds.has(e.id));
+                const newEmails = emailsForThread(thread).filter(e => !processedIds.has(e.id));
 
                 if (newEmails.length > 0) {
                     const updated = await updateThread(thread, newEmails, currentProperty.name);
@@ -346,7 +319,9 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
             });
         }
 
-        onSave({ ...currentProperty, threads: updatedThreads });
+        // Save against the LIVE property, not the snapshot captured before the
+        // awaits — otherwise any edit made during the Gemini calls is clobbered.
+        onSave({ ...propertyRef.current, threads: updatedThreads });
     }, [onSave]);
 
     // Detect when correspondence count increases (new emails synced) → auto-update threads
@@ -386,8 +361,8 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
             if (emails.length === 0) throw new Error('No correspondence found for this filter');
 
             const thread = await generateThread(emails, property.name, category, filterSenders);
-            const updatedThreads = [...threads, thread];
-            onSave({ ...property, threads: updatedThreads });
+            const updatedThreads = [...(propertyRef.current.threads || []), thread];
+            onSave({ ...propertyRef.current, threads: updatedThreads });
             setSelectedThreadId(thread.id);
             setShowNewThreadForm(false);
             setCustomSenders('');
@@ -412,8 +387,8 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
             }
 
             const updated = await updateThread(thread, newEmails, property.name);
-            const updatedThreads = threads.map(t => t.id === thread.id ? updated : t);
-            onSave({ ...property, threads: updatedThreads });
+            const updatedThreads = (propertyRef.current.threads || threads).map(t => t.id === thread.id ? updated : t);
+            onSave({ ...propertyRef.current, threads: updatedThreads });
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update thread');
         } finally {
@@ -452,7 +427,7 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
             });
         }
 
-        onSave({ ...property, threads: updatedThreads });
+        onSave({ ...propertyRef.current, threads: updatedThreads });
     };
 
     const handleDeleteThread = (threadId: string) => {
@@ -614,8 +589,10 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
         const pendingActions = selectedThread.actions.filter(a => a.status === 'pending');
         const doneActions = selectedThread.actions.filter(a => a.status === 'done');
         const emailCount = getEmailsForThread(selectedThread).length;
-        const processedCount = selectedThread.lastProcessedEmailIds?.length || 0;
-        const newEmailCount = emailCount - processedCount;
+        // Set-difference, not subtraction: processed ids may reference emails
+        // that no longer match the rules (deleted / rules changed), which made
+        // the count negative or wrongly enable the Update button.
+        const newEmailCount = getNewEmailCount(selectedThread);
         const isUpdating = updatingThreadIds.has(selectedThread.id);
         const threadEmails = getEmailsForThread(selectedThread);
         const awaiting = isAwaitingReply(threadEmails);
@@ -638,7 +615,7 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
                                         </span>
                                     )}
                                     <span className="text-xs text-slate-500 dark:text-slate-400">
-                                        {processedCount} emails processed
+                                        {selectedThread.lastProcessedEmailIds?.length || 0} emails processed
                                     </span>
                                     <span className="text-xs text-slate-400">·</span>
                                     <span className="text-xs text-slate-500 dark:text-slate-400">

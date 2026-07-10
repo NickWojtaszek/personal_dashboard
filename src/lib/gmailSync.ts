@@ -22,6 +22,24 @@ export interface SyncResult {
 }
 
 /**
+ * Single source of truth for "does this email belong to this sync rule".
+ * Matches the rule query against `from` OR `to` — the `to` check is what
+ * makes SENT replies inherit the category. (Previously triplicated across
+ * CorrespondencePage / CorrespondenceSection / ThreadsSection with divergent
+ * behaviour: the Correspondence copy dropped the `to` check.)
+ */
+export function emailMatchesRule(
+  email: Pick<CorrespondenceItem, 'from' | 'to'>,
+  rule: { query: string }
+): boolean {
+  const from = (email.from || '').toLowerCase();
+  const to = (email.to || '').toLowerCase();
+  const q = rule.query.toLowerCase();
+  const fromEmail = from.split('<').pop()?.replace('>', '').trim() || '';
+  return from.includes(q) || q.includes(fromEmail) || to.includes(q);
+}
+
+/**
  * Build the combined Gmail search query from rules.
  * Multiple rules are OR'd together: (rule1) OR (rule2) OR ...
  * Optionally scoped to emails after lastSyncedAt.
@@ -113,9 +131,19 @@ export async function syncGmailForProperty(
       .map(c => c.gmailMessageId!)
   );
 
-  // Search Gmail
-  const searchResult = await searchMessages(query, 500);
-  if (!searchResult.messages || searchResult.messages.length === 0) {
+  // Search Gmail, following nextPageToken so large mailboxes aren't silently
+  // truncated (previously capped at the first 500 and stamped lastSyncedAt,
+  // so the dropped messages were never revisited).
+  const MAX_MESSAGES = 5000; // hard safety cap
+  const foundMessages: { id: string; threadId: string }[] = [];
+  let pageToken: string | undefined;
+  do {
+    const searchResult = await searchMessages(query, 500, pageToken);
+    if (searchResult.messages) foundMessages.push(...searchResult.messages);
+    pageToken = searchResult.nextPageToken;
+  } while (pageToken && foundMessages.length < MAX_MESSAGES);
+
+  if (foundMessages.length === 0) {
     return {
       correspondence: existingCorrespondence,
       syncConfig: { ...syncConfig, lastSyncedAt: new Date().toISOString() },
@@ -124,7 +152,7 @@ export async function syncGmailForProperty(
   }
 
   // Collect unique thread IDs — fetching full threads captures our replies too
-  const threadIds = [...new Set(searchResult.messages.map(m => m.threadId))];
+  const threadIds = [...new Set(foundMessages.map(m => m.threadId))];
 
   // Fetch complete threads (includes all messages: incoming + our replies)
   const threads = await getThreads(threadIds);

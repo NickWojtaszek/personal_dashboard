@@ -590,10 +590,12 @@ export async function extractFromFile(file: File, country?: PropertyCountry): Pr
     const arrayBuffer = await file.arrayBuffer();
     const base64Data = arrayBufferToBase64(arrayBuffer);
     const documentToStore: Document = {
+        id: crypto.randomUUID(),
         name: file.name,
         url: '#',
         data: base64Data,
         mimeType: 'application/pdf',
+        uploadedAt: new Date().toISOString(),
     };
 
     const pdfText = await extractPdfText(arrayBuffer);
@@ -615,10 +617,12 @@ export async function extractFromBase64(base64Data: string, fileName: string, so
 
     const docName = sourceLabel ? `${fileName} (from: ${sourceLabel})` : fileName;
     const documentToStore: Document = {
+        id: crypto.randomUUID(),
         name: docName,
         url: '#',
         data: base64Data,
         mimeType: 'application/pdf',
+        uploadedAt: new Date().toISOString(),
     };
 
     const pdfText = await extractPdfText(arrayBuffer);
@@ -659,6 +663,13 @@ async function callGemini(pdfText: string, country?: PropertyCountry, base64Data
         },
     });
 
-    const jsonStr = response.text.trim();
-    return JSON.parse(jsonStr);
+    const jsonStr = response.text?.trim();
+    if (!jsonStr) {
+        throw new Error('AI returned an empty response (possibly blocked or truncated) — try again.');
+    }
+    try {
+        return JSON.parse(jsonStr);
+    } catch {
+        throw new Error('AI returned malformed data — try again.');
+    }
 }

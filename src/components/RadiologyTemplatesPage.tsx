@@ -994,7 +994,12 @@ export default function RadiologyTemplatesPage() {
   }, []);
 
   useEffect(() => {
-    if (!storageReady || !mountedRef.current) {
+    // Don't consume the skip-first-save guard before hydration: the effect
+    // also runs while storageReady is false, and setting the flag there meant
+    // the post-hydration run saved (an echo of just-loaded data) instead of
+    // being skipped.
+    if (!storageReady) return;
+    if (!mountedRef.current) {
       mountedRef.current = true;
       return;
     }
