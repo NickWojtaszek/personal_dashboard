@@ -17,7 +17,8 @@ import { useTrainingCapture } from '../hooks/useTrainingCapture';
 import TranscriptionModeSelector from './TranscriptionModeSelector';
 import CorrectionsBadge from './CorrectionsBadge';
 import TrainingCaptureBadge from './TrainingCaptureBadge';
-import { enhanceReport, correctSelection as correctSelectionWithAI, checkGrammar } from '../services/aiService';
+import { enhanceReport, correctSelection as correctSelectionWithAI } from '../services/aiService';
+import { runGrammarCheck } from '../services/grammarService';
 import GrammarTooltip from './GrammarTooltip';
 import { useTheme } from '../context/ThemeContext';
 import { applyGrammarHighlighting, removeGrammarHighlighting, getPlainText, insertHtmlAtCursor, deleteRangeUndoable } from '../utils/domUtils';
@@ -649,11 +650,17 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
     setIsCheckingGrammar(true);
 
     try {
-        const errors = await checkGrammar(currentText);
+        const { errors, engine } = await runGrammarCheck(
+            currentText,
+            dictation.grammarServerUrl,
+            supportedLanguages[language].speechCode
+        );
         const errorsWithIds = errors.map(e => ({ ...e, id: crypto.randomUUID() }));
         if (errorsWithIds.length > 0) {
             setGrammarErrors(errorsWithIds);
             applyGrammarHighlighting(editorRef.current, errorsWithIds);
+            setToastMessage(`${errorsWithIds.length} × (${engine === 'languagetool' ? 'LanguageTool' : 'AI'})`);
+            setTimeout(() => setToastMessage(''), 2500);
         } else {
             setToastMessage(t('editor.grammar.noErrors'));
             setTimeout(() => setToastMessage(''), 3000);

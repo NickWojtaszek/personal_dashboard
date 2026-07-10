@@ -160,6 +160,8 @@ export interface DictationSettings {
   useVad?: boolean;
   /** Capture (audio + transcript + edits) pairs for later Whisper fine-tuning. Local-only. */
   captureTraining?: boolean;
+  /** Self-hosted LanguageTool server for fast local grammar checks (falls back to AI when unreachable). */
+  grammarServerUrl?: string;
 }
 
 export interface HotkeysConfig {

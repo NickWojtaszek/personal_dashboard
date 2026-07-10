@@ -19,6 +19,7 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
     const [serverReachable, setServerReachable] = useState<boolean | null>(null);
     const [showConfig, setShowConfig] = useState(false);
     const [urlDraft, setUrlDraft] = useState(dictation.serverUrl);
+    const [grammarUrlDraft, setGrammarUrlDraft] = useState(dictation.grammarServerUrl || '');
     const [models, setModels] = useState<string[]>([]);
     const [currentModel, setCurrentModel] = useState<string>('');
     const [switchingModel, setSwitchingModel] = useState(false);
@@ -48,6 +49,13 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
         const trimmed = urlDraft.trim().replace(/\/+$/, '');
         if (trimmed && trimmed !== dictation.serverUrl) {
             setDictation({ ...dictation, serverUrl: trimmed });
+        }
+    };
+
+    const saveGrammarUrl = () => {
+        const trimmed = grammarUrlDraft.trim().replace(/\/+$/, '');
+        if (trimmed !== (dictation.grammarServerUrl || '')) {
+            setDictation({ ...dictation, grammarServerUrl: trimmed || undefined });
         }
     };
 
@@ -162,6 +170,27 @@ const TranscriptionModeSelector: React.FC<Props> = ({ lastLatencyMs, compact = f
                                 className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded"
                             >Save URL</button>
                         </div>
+                    </div>
+
+                    {/* Grammar server URL (LanguageTool) */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-300 mb-1">Grammar server URL (LanguageTool)</label>
+                        <div className="flex gap-1.5">
+                            <input
+                                type="text"
+                                value={grammarUrlDraft}
+                                onChange={e => setGrammarUrlDraft(e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') saveGrammarUrl(); if (e.key === 'Escape') setShowConfig(false); }}
+                                placeholder="http://localhost:8010"
+                                className="flex-1 px-2 py-1 text-xs bg-gray-900 border border-gray-700 rounded text-white focus:outline-none focus:border-blue-500"
+                            />
+                            <button
+                                onClick={saveGrammarUrl}
+                                disabled={grammarUrlDraft.trim() === (dictation.grammarServerUrl || '')}
+                                className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded"
+                            >Save URL</button>
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">Fast local grammar checks. When unreachable, grammar checks fall back to the (slow) AI. Run: docker run -d -p 8010:8010 erikvl87/languagetool</p>
                     </div>
 
                     {/* VAD toggle */}

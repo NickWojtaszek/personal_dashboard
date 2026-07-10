@@ -140,3 +140,29 @@ By design — these are handled client-side or deferred:
 - Streaming (WebSocket) → MVP1 is segment-mode (HTTP) only
 - Training data collection → deferred until consent/governance is in place
 - Metrics dashboard, fine-tuning, clinical analytics → not in scope
+
+---
+
+## Companion: LanguageTool grammar server (optional)
+
+The dictation app's grammar check ("Sprawdź gramatykę") is two-tier: it tries a
+local **LanguageTool** server first (sub-second, nothing leaves your machine)
+and falls back to the slow AI check when the server is unreachable.
+
+Run it alongside this server:
+
+```bash
+docker run -d --name languagetool -p 8010:8010 erikvl87/languagetool
+```
+
+or without Docker (needs Java 17+): download the standalone server from
+https://languagetool.org/download/, then
+
+```bash
+java -cp languagetool-server.jar org.languagetool.server.HTTPServer --port 8010 --allow-origin "*"
+```
+
+The URL is configurable in the dictation app under the ⚙ transcription-mode
+popover ("Grammar server URL", default `http://localhost:8010`). If the browser
+console shows CORS errors with the Docker image, use the plain-Java command
+above — the `--allow-origin "*"` flag is what permits requests from the app.

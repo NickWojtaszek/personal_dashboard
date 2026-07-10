@@ -3,7 +3,8 @@ import { useTranslations } from '../context/LanguageContext';
 import { useTheme } from '../context/ThemeContext';
 import { useSettings } from '../context/SettingsContext';
 import { SpinnerIcon, CheckIcon } from './Icons';
-import { enhanceReport, checkGrammar, splitDirectives } from '../services/aiService';
+import { enhanceReport, splitDirectives } from '../services/aiService';
+import { runGrammarCheck, type GrammarEngine } from '../services/grammarService';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { applyGrammarHighlighting, removeGrammarHighlighting } from '../utils/domUtils';
 import GrammarTooltip from './GrammarTooltip';
@@ -43,7 +44,7 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
 }) => {
   const { t, language, supportedLanguages } = useTranslations();
   const { currentTheme } = useTheme();
-  const { aiPromptConfig, styleExamples } = useSettings();
+  const { aiPromptConfig, styleExamples, dictation } = useSettings();
 
   const [step, setStep] = useState<ModalStep>('processing');
   const [aiImprovedText, setAiImprovedText] = useState('');
@@ -58,7 +59,7 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
   const [grammarErrors, setGrammarErrors] = useState<GrammarError[]>([]);
   const [activeError, setActiveError] = useState<{ error: GrammarError; element: HTMLElement } | null>(null);
   const [isCheckingGrammar, setIsCheckingGrammar] = useState(false);
-  const [grammarResult, setGrammarResult] = useState<number | null>(null);
+  const [grammarResult, setGrammarResult] = useState<{ count: number; engine: GrammarEngine } | null>(null);
 
   const setFontSize = (updater: (prev: number) => number) => {
     setFontSizeState(prev => {
@@ -177,7 +178,11 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
     setActiveError(null);
     setIsCheckingGrammar(true);
     try {
-      const errors = await checkGrammar(current);
+      const { errors, engine } = await runGrammarCheck(
+        current,
+        dictation.grammarServerUrl,
+        supportedLanguages[language].speechCode
+      );
       const withIds = errors.map(e => ({ ...e, id: crypto.randomUUID() }));
       if (withIds.length > 0) {
         setGrammarErrors(withIds);
@@ -185,7 +190,7 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
       } else {
         setError(null);
       }
-      setGrammarResult(withIds.length);
+      setGrammarResult({ count: withIds.length, engine });
     } catch (err) {
       console.error('Grammar check error:', err);
       setError(err instanceof Error ? err.message : 'Grammar check failed');
@@ -351,8 +356,9 @@ const AIReportRefinementModal: React.FC<AIReportRefinementModalProps> = ({
                       {isCheckingGrammar ? <SpinnerIcon className="h-3 w-3" /> : 'Aa✓'}
                       {t('editor.grammar.check', 'Grammar')}
                       {grammarResult !== null && !isCheckingGrammar && (
-                        <span className={grammarResult > 0 ? 'font-bold' : 'text-green-300'}>
-                          {grammarResult > 0 ? grammarResult : '✓'}
+                        <span className={grammarResult.count > 0 ? 'font-bold' : 'text-green-300'} title={grammarResult.engine === 'languagetool' ? 'Checked by LanguageTool (local)' : 'Checked by AI (LanguageTool unreachable)'}>
+                          {grammarResult.count > 0 ? grammarResult.count : '✓'}
+                          <span className="opacity-60 ml-0.5">{grammarResult.engine === 'languagetool' ? 'LT' : 'AI'}</span>
                         </span>
                       )}
                     </button>
