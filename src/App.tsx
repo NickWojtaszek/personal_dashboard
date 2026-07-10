@@ -727,8 +727,11 @@ const App: React.FC = () => {
     // --- Asset disposal (sell / dispose) ---
     const [disposing, setDisposing] = useState<{ kind: 'vehicle' | 'property'; id: string } | null>(null);
 
-    const handleDisposeVehicle = useCallback((id: string, disposal: Disposal) => {
+    const handleDisposeVehicle = useCallback((id: string, disposal: Disposal, archivePolicyIds: string[]) => {
         setVehicles(prev => prev.map(v => v.id === id ? { ...v, disposal } : v));
+        if (archivePolicyIds.length > 0) {
+            setInsurancePolicies(prev => prev.map(p => archivePolicyIds.includes(p.id) ? { ...p, status: 'Archived' as const } : p));
+        }
         setDisposing(null);
     }, []);
 
@@ -736,8 +739,32 @@ const App: React.FC = () => {
         setVehicles(prev => prev.map(v => v.id === id ? { ...v, disposal: undefined } : v));
     }, []);
 
-    const handleDisposeProperty = useCallback((id: string, disposal: Disposal, archivePolicyIds: string[]) => {
-        setProperties(prev => prev.map(p => p.id === id ? { ...p, disposal } : p));
+    const handleDisposeProperty = useCallback((id: string, disposal: Disposal, archivePolicyIds: string[], options: { dischargeMortgage: boolean; pauseGmailSync: boolean }) => {
+        setProperties(prev => prev.map(p => {
+            if (p.id !== id) return p;
+            let updated: PropertyInfo = { ...p, disposal };
+            if (options.dischargeMortgage && p.mortgage?.loans?.length) {
+                // Settle every active loan at the sale date: keep the closing
+                // balance for the record, zero the live balance so interest
+                // projections stop, and refresh the derived totals.
+                const loans = p.mortgage.loans.map(l =>
+                    l.settledDate ? l : {
+                        ...l,
+                        settledDate: disposal.date,
+                        balanceAtSettlement: l.outstandingBalance,
+                        outstandingBalance: 0,
+                    }
+                );
+                updated = {
+                    ...updated,
+                    mortgage: { ...p.mortgage, loans, totalDebt: 0, netExposure: 0 - (p.mortgage.offsetBalance || 0) },
+                };
+            }
+            if (options.pauseGmailSync && p.gmailSync?.autoSync) {
+                updated = { ...updated, gmailSync: { ...p.gmailSync, autoSync: false } };
+            }
+            return updated;
+        }));
         if (archivePolicyIds.length > 0) {
             setInsurancePolicies(prev => prev.map(p => archivePolicyIds.includes(p.id) ? { ...p, status: 'Archived' as const } : p));
         }
@@ -867,6 +894,7 @@ const App: React.FC = () => {
                                 pendingFile={pendingPolicyFile}
                                 onPendingFileConsumed={() => setPendingPolicyFile(null)}
                                 properties={properties}
+                                vehicles={vehicles}
                                 scrollToSection={scrollToSection}
                                 onScrollComplete={() => setScrollToSection(null)}
                             />;
@@ -1084,23 +1112,32 @@ const App: React.FC = () => {
                 if (disposing.kind === 'vehicle') {
                     const v = vehicles.find(x => x.id === disposing.id);
                     if (!v) return null;
+                    const linked = insurancePolicies
+                        .filter(pl => pl.vehicleId === v.id && pl.status !== 'Archived')
+                        .map(pl => ({ id: pl.id, name: pl.name }));
                     return <DisposeAssetModal
                         assetKind="vehicle"
                         assetLabel={`${v.name} (${v.rego})`}
                         currency={v.currency}
-                        onConfirm={(disposal) => handleDisposeVehicle(v.id, disposal)}
+                        linkedPolicies={linked}
+                        onConfirm={(disposal, archiveIds) => handleDisposeVehicle(v.id, disposal, archiveIds)}
                         onClose={() => setDisposing(null)}
                     />;
                 }
                 const p = properties.find(x => x.id === disposing.id);
                 if (!p) return null;
-                const linked = insurancePolicies.filter(pl => pl.propertyId === p.id).map(pl => ({ id: pl.id, name: pl.name }));
+                const linked = insurancePolicies
+                    .filter(pl => pl.propertyId === p.id && pl.status !== 'Archived')
+                    .map(pl => ({ id: pl.id, name: pl.name }));
+                const activeLoans = (p.mortgage?.loans || []).filter(l => !l.settledDate && (l.outstandingBalance || 0) > 0);
                 return <DisposeAssetModal
                     assetKind="property"
                     assetLabel={p.name}
-                    currency="GBP"
+                    currency={p.financials?.currency || 'GBP'}
                     linkedPolicies={linked}
-                    onConfirm={(disposal, archiveIds) => handleDisposeProperty(p.id, disposal, archiveIds)}
+                    activeLoanCount={activeLoans.length}
+                    hasGmailAutoSync={!!p.gmailSync?.autoSync}
+                    onConfirm={(disposal, archiveIds, options) => handleDisposeProperty(p.id, disposal, archiveIds, options)}
                     onClose={() => setDisposing(null)}
                 />;
             })()}

@@ -262,6 +262,9 @@ const ThreadsSection: React.FC<ThreadsSectionProps> = ({ property, onSave }) => 
     // ─── Auto-update threads when new emails arrive ───────────────────
 
     const autoUpdateThreads = useCallback(async (currentProperty: PropertyInfo) => {
+        // Sold/disposed properties keep their threads frozen — no background
+        // Gemini calls for an asset that's left the portfolio.
+        if (currentProperty.disposal) return;
         const currentThreads = currentProperty.threads || [];
         const currentCorrespondence = currentProperty.correspondence || [];
         if (currentThreads.length === 0) return;

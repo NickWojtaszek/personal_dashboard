@@ -2,7 +2,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import type { InsuranceInfo, PropertyInfo, PropertyCountry, Document } from '../types';
+import type { InsuranceInfo, PropertyInfo, VehicleInfo, PropertyCountry, Document } from '../types';
 import InsuranceInfoSection from './insurance-detail/InsuranceInfoSection';
 import FinancialsSection from './insurance-detail/FinancialsSection';
 import TimelineSection from './insurance-detail/TimelineSection';
@@ -31,6 +31,7 @@ interface InsuranceDetailPageProps {
     pendingFile?: File | null;
     onPendingFileConsumed?: () => void;
     properties?: PropertyInfo[];
+    vehicles?: VehicleInfo[];
     scrollToSection?: string | null;
     onScrollComplete?: () => void;
 }
@@ -41,7 +42,7 @@ interface ExtractedData extends Partial<InsuranceInfo> {
 
 const STATUS_OPTIONS: InsuranceInfo['status'][] = ['Active', 'Expired', 'Pending'];
 
-const InsuranceDetailPage: React.FC<InsuranceDetailPageProps> = ({ policy, allPolicies, onBack, onSavePolicy, onDeletePolicy, onMergePolicyInto, pendingFile, onPendingFileConsumed, properties, scrollToSection, onScrollComplete }) => {
+const InsuranceDetailPage: React.FC<InsuranceDetailPageProps> = ({ policy, allPolicies, onBack, onSavePolicy, onDeletePolicy, onMergePolicyInto, pendingFile, onPendingFileConsumed, properties, vehicles, scrollToSection, onScrollComplete }) => {
     const [editingSection, setEditingSection] = useState<EditableInsuranceSection>(null);
     const [showMergeMenu, setShowMergeMenu] = useState(false);
 
@@ -214,6 +215,7 @@ const InsuranceDetailPage: React.FC<InsuranceDetailPageProps> = ({ policy, allPo
                         onSave={handleSave}
                         onCancel={handleCancel}
                         properties={properties}
+                        vehicles={vehicles}
                     />
                     </div>
                     <div data-section="financials">

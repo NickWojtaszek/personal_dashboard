@@ -128,9 +128,10 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
         }
     }, [focusCorrespondenceId, onFocusHandled]);
 
-    // Auto-sync on mount
+    // Auto-sync on mount — skipped for sold/disposed properties (history stays,
+    // no new mail is pulled).
     useEffect(() => {
-        if (syncConfig.autoSync && syncConfig.rules.length > 0 && isGmailAuthenticated()) {
+        if (!property.disposal && syncConfig.autoSync && syncConfig.rules.length > 0 && isGmailAuthenticated()) {
             handleSync();
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps

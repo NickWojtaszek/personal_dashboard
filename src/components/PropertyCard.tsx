@@ -24,6 +24,11 @@ const CardContent: React.FC<{ property: PropertyInfo }> = ({ property }) => (
                 {property.country && <span className="mr-1.5">{getCountryFlag(property.country)}</span>}
                 {property.name}
             </h3>
+            {property.disposal && (
+                <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-200 flex-shrink-0">
+                    {property.disposal.type === 'Transferred' ? 'Transferred' : 'Sold'}
+                </span>
+            )}
         </div>
         
         <div className="flex-grow mb-4">

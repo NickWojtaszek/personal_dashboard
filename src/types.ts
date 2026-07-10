@@ -143,6 +143,10 @@ export interface MortgageLoan {
     ratePeriods?: MortgageRatePeriod[];
     payments?: MortgagePayment[];
     notes?: string;
+    // Discharge (e.g. repaid from sale proceeds) — settled loans keep their
+    // history but stop contributing to cost/interest projections.
+    settledDate?: string;            // YYYY-MM-DD
+    balanceAtSettlement?: number;    // outstanding balance at discharge, for the record
 }
 
 export interface PropertyMortgage {
@@ -454,6 +458,7 @@ export interface InsuranceInfo {
     country?: PropertyCountry;
     groups?: string[];
     propertyId?: string; // Link to a PropertyInfo.id for compliance sync
+    vehicleId?: string;  // Link to a VehicleInfo.id — enables archive-on-sale cascade
     policyType?: string;
     policyNumber?: string;
     coverageAmount?: number;

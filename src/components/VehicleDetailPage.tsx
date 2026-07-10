@@ -165,23 +165,35 @@ const VehicleDetailPage: React.FC<VehicleDetailPageProps> = ({ vehicle, onBack, 
                 </div>
             </div>
 
-            {vehicle.disposal && (
-                <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm">
-                    <span className="text-amber-800 dark:text-amber-300">
-                        {vehicle.disposal.type === 'WrittenOff' ? 'Written off' : vehicle.disposal.type} on {new Date(vehicle.disposal.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        {typeof vehicle.disposal.amount === 'number' ? ` for ${vehicle.disposal.currency || ''} ${vehicle.disposal.amount.toLocaleString()}` : ''}
-                        {vehicle.disposal.notes ? ` — ${vehicle.disposal.notes}` : ''}
-                    </span>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                        {vehicle.disposal.document && (
-                            <button onClick={() => openDocument(vehicle.disposal!.document)} className="px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">View confirmation</button>
-                        )}
-                        {onRestore && (
-                            <button onClick={onRestore} className="px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">Restore</button>
-                        )}
+            {vehicle.disposal && (() => {
+                // Whole-of-ownership rego spend: current registration + history entries.
+                const regoTotal = (vehicle.totalAmount || 0) + (vehicle.history || []).reduce((s, h) => s + (h.totalAmount || 0), 0);
+                return (
+                <div className="px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-sm space-y-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                        <span className="text-amber-800 dark:text-amber-300">
+                            {vehicle.disposal.type === 'WrittenOff' ? 'Written off' : vehicle.disposal.type} on {new Date(vehicle.disposal.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            {typeof vehicle.disposal.amount === 'number' ? ` for ${vehicle.disposal.currency || ''} ${vehicle.disposal.amount.toLocaleString()}` : ''}
+                            {vehicle.disposal.notes ? ` — ${vehicle.disposal.notes}` : ''}
+                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            {vehicle.disposal.document && (
+                                <button onClick={() => openDocument(vehicle.disposal!.document)} className="px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">View confirmation</button>
+                            )}
+                            {onRestore && (
+                                <button onClick={onRestore} className="px-3 py-1 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">Restore</button>
+                            )}
+                        </div>
                     </div>
+                    {regoTotal > 0 && (
+                        <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
+                            Recorded rego spend over ownership: {vehicle.currency || ''} {regoTotal.toLocaleString()}
+                            {typeof vehicle.disposal.amount === 'number' ? ` · sale recovered ${Math.round((vehicle.disposal.amount / regoTotal) * 100)}% of it` : ''}
+                        </p>
+                    )}
                 </div>
-            )}
+                );
+            })()}
 
             <header className="pb-4 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex items-center gap-3 mb-2">

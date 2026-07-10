@@ -454,6 +454,11 @@ const MortgageSection: React.FC<MortgageSectionProps> = ({ property, isEditing, 
                                                 <span className="font-semibold text-slate-800 dark:text-gray-200">
                                                     {loan.lender || 'Loan'} — <span className="font-mono text-sm">{loan.accountNumber}</span>
                                                 </span>
+                                                {loan.settledDate && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300" title={loan.balanceAtSettlement !== undefined ? `Balance at settlement: ${loan.balanceAtSettlement.toLocaleString()}` : undefined}>
+                                                        Settled {loan.settledDate}
+                                                    </span>
+                                                )}
                                                 {loan.repaymentType === 'interest-only' && (
                                                     <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
                                                         Interest Only

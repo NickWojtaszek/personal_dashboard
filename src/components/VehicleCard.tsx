@@ -47,6 +47,11 @@ const CardContent: React.FC<{ vehicle: VehicleInfo }> = ({ vehicle }) => {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {vehicle.disposal && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-200">
+                            {vehicle.disposal.type === 'WrittenOff' ? 'Written off' : vehicle.disposal.type}
+                        </span>
+                    )}
                     <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${statusColor}`}>{statusText}</span>
                     <div className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold font-mono tracking-wider">{vehicle.state}</div>
                 </div>

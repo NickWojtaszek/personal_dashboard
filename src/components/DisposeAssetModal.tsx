@@ -5,15 +5,30 @@ import DocumentDropzone from './DocumentDropzone';
 
 interface LinkedPolicy { id: string; name: string; }
 
+export interface DisposeCascadeOptions {
+    dischargeMortgage: boolean;
+    pauseGmailSync: boolean;
+}
+
 interface DisposeAssetModalProps {
     assetLabel: string;
     assetKind: 'vehicle' | 'property';
     currency?: string;
-    /** Insurance policies linked to this asset (properties only) — offered for cascade archive. */
+    /** Insurance policies linked to this asset — offered for cascade archive. */
     linkedPolicies?: LinkedPolicy[];
-    onConfirm: (disposal: Disposal, archivePolicyIds: string[]) => void;
+    /** Number of active (unsettled) mortgage loans — offers the discharge cascade. */
+    activeLoanCount?: number;
+    /** Property has Gmail auto-sync enabled — offers to pause it. */
+    hasGmailAutoSync?: boolean;
+    onConfirm: (disposal: Disposal, archivePolicyIds: string[], options: DisposeCascadeOptions) => void;
     onClose: () => void;
 }
+
+/** Real-world to-dos per asset kind — data no-ops, ticked items land in the notes. */
+const CHECKLIST: Record<'vehicle' | 'property', string[]> = {
+    vehicle: ['Transfer / cancel rego', 'Notify insurer (pro-rata refund?)', 'Close toll / e-tag account'],
+    property: ['Notify insurer', 'Finalise utilities & council', 'Agent / bond handover'],
+};
 
 const TYPE_OPTIONS: Record<'vehicle' | 'property', { value: Disposal['type']; label: string }[]> = {
     vehicle: [
@@ -34,17 +49,27 @@ interface SaleExtract {
     reference?: string;
 }
 
-const DisposeAssetModal: React.FC<DisposeAssetModalProps> = ({ assetLabel, assetKind, currency, linkedPolicies = [], onConfirm, onClose }) => {
+const DisposeAssetModal: React.FC<DisposeAssetModalProps> = ({ assetLabel, assetKind, currency, linkedPolicies = [], activeLoanCount = 0, hasGmailAutoSync = false, onConfirm, onClose }) => {
     const today = new Date().toISOString().split('T')[0];
     const [type, setType] = useState<Disposal['type']>('Sold');
     const [date, setDate] = useState(today);
     const [amount, setAmount] = useState('');
     const [notes, setNotes] = useState('');
     const [archiveIds, setArchiveIds] = useState<Set<string>>(new Set(linkedPolicies.map(p => p.id)));
+    const [dischargeMortgage, setDischargeMortgage] = useState(activeLoanCount > 0);
+    const [pauseGmailSync, setPauseGmailSync] = useState(hasGmailAutoSync);
+    const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
     const [file, setFile] = useState<File | null>(null);
     const [extracting, setExtracting] = useState(false);
     const [extractError, setExtractError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
+
+    const toggleChecklistItem = (item: string) =>
+        setCheckedItems(prev => {
+            const next = new Set(prev);
+            if (next.has(item)) next.delete(item); else next.add(item);
+            return next;
+        });
 
     const togglePolicy = (id: string) =>
         setArchiveIds(prev => {
@@ -91,15 +116,19 @@ const DisposeAssetModal: React.FC<DisposeAssetModalProps> = ({ assetLabel, asset
         setBusy(true);
         try {
             const document = file ? await fileToDocument(file, { category: 'Other' }) : undefined;
+            const checklistNote = checkedItems.size > 0
+                ? `Done: ${CHECKLIST[assetKind].filter(i => checkedItems.has(i)).join('; ')}`
+                : '';
+            const combinedNotes = [notes.trim(), checklistNote].filter(Boolean).join('\n');
             const disposal: Disposal = {
                 type,
                 date,
                 archivedAt: new Date().toISOString(),
                 ...(amount.trim() ? { amount: parseFloat(amount), currency } : {}),
-                ...(notes.trim() ? { notes: notes.trim() } : {}),
+                ...(combinedNotes ? { notes: combinedNotes } : {}),
                 ...(document ? { document } : {}),
             };
-            onConfirm(disposal, Array.from(archiveIds));
+            onConfirm(disposal, Array.from(archiveIds), { dischargeMortgage, pauseGmailSync });
         } finally {
             setBusy(false);
         }
@@ -186,6 +215,42 @@ const DisposeAssetModal: React.FC<DisposeAssetModalProps> = ({ assetLabel, asset
                             </div>
                         </div>
                     )}
+
+                    {activeLoanCount > 0 && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <label className="flex items-start gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" checked={dischargeMortgage} onChange={() => setDischargeMortgage(v => !v)} className="accent-brand-primary w-4 h-4 mt-0.5" />
+                                <span>
+                                    Discharge the mortgage ({activeLoanCount} loan{activeLoanCount !== 1 ? 's' : ''})
+                                    <span className="block text-xs text-slate-500 dark:text-gray-400">Marks loans settled at the sale date — history kept, interest projections stop.</span>
+                                </span>
+                            </label>
+                        </div>
+                    )}
+
+                    {hasGmailAutoSync && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <label className="flex items-start gap-2 text-sm cursor-pointer">
+                                <input type="checkbox" checked={pauseGmailSync} onChange={() => setPauseGmailSync(v => !v)} className="accent-brand-primary w-4 h-4 mt-0.5" />
+                                <span>
+                                    Pause Gmail auto-sync
+                                    <span className="block text-xs text-slate-500 dark:text-gray-400">Synced emails and threads are kept; new mail stops being pulled.</span>
+                                </span>
+                            </label>
+                        </div>
+                    )}
+
+                    <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                        <p className="text-xs font-medium text-slate-500 dark:text-gray-400 mb-2">Handover checklist <span className="font-normal">(ticked items are saved to notes)</span></p>
+                        <div className="space-y-1.5">
+                            {CHECKLIST[assetKind].map(item => (
+                                <label key={item} className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input type="checkbox" checked={checkedItems.has(item)} onChange={() => toggleChecklistItem(item)} className="accent-brand-primary w-4 h-4" />
+                                    <span className="text-slate-600 dark:text-gray-300">{item}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex justify-end gap-2 px-5 py-3 border-t border-slate-200 dark:border-slate-700">

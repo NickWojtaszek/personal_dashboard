@@ -118,7 +118,8 @@ function generateTaxCSV(property: PropertyInfo, transactions: FinancialTransacti
                 loanInterest = (loan.interestRate / 100) * loan.outstandingBalance;
                 loanSource = 'rate x balance';
             }
-            row(loan.accountNumber || '', loan.lender || '', loan.interestRate || '', loan.outstandingBalance, loanInterest !== undefined ? `${Math.round(loanInterest)} (${loanSource})` : '');
+            const accountLabel = loan.settledDate ? `${loan.accountNumber || ''} (settled ${loan.settledDate})` : (loan.accountNumber || '');
+            row(accountLabel, loan.lender || '', loan.interestRate || '', loan.settledDate ? (loan.balanceAtSettlement ?? 0) : loan.outstandingBalance, loanInterest !== undefined ? `${Math.round(loanInterest)} (${loanSource})` : '');
         }
         // Total interest: payment history first
         let fromPayments = 0;
@@ -931,7 +932,9 @@ const MonthlyCashFlowChart: React.FC<{ buckets: MonthBucket[]; symbol: string }>
 
 // ─── Main component ──────────────────────────────────────────────
 const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ property, onSave }) => {
-    const [annualised, setAnnualised] = useState(true);
+    // For a sold property "Total to Date" is the meaningful default —
+    // annualised projections describe a holding you no longer have.
+    const [annualised, setAnnualised] = useState(!property.disposal);
     const [selectedFY, setSelectedFY] = useState<number | null>(null);
 
     const currency = property.financials?.currency || 'AUD';
@@ -975,7 +978,13 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
             const dates = txns.filter(t => t.date).map(t => new Date(t.date!).getTime()).filter(d => !isNaN(d));
             if (dates.length >= 2) {
                 const minDate = Math.min(...dates);
-                const maxDate = Math.max(...dates);
+                let maxDate = Math.max(...dates);
+                // Sold property: ownership (and thus the meaningful rate window)
+                // ends at the sale date, even if trailing bills postdate it.
+                if (property.disposal?.date) {
+                    const soldAt = new Date(property.disposal.date).getTime();
+                    if (!isNaN(soldAt) && soldAt > minDate) maxDate = Math.min(maxDate, soldAt);
+                }
                 const spanDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
                 if (spanDays > 0) {
                     annualisationFactor = 365 / spanDays;
@@ -1022,8 +1031,11 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
         let annualInterest = 0;
         let hasInterestBreakdown = false;
 
+        // Settled (discharged) loans keep their history but contribute nothing
+        // to forward-looking cost/interest projections.
+        const activeLoans = (mortgage?.loans || []).filter(l => !l.settledDate);
         if (mortgage?.loans && mortgage.loans.length > 0) {
-            annualMortgage = mortgage.loans.reduce((sum, loan) => {
+            annualMortgage = activeLoans.reduce((sum, loan) => {
                 if (loan.repaymentAmount) return sum + loan.repaymentAmount * 12;
                 if (loan.payments && loan.payments.length > 0) {
                     const avg = loan.payments.reduce((s, p) => s + p.amount, 0) / loan.payments.length;
@@ -1032,7 +1044,7 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
                 return sum;
             }, 0);
             // Extract interest from payment history if available
-            for (const loan of mortgage.loans) {
+            for (const loan of activeLoans) {
                 if (loan.payments && loan.payments.length > 0 && loan.payments.some(p => p.interest > 0)) {
                     hasInterestBreakdown = true;
                     const avgInterest = loan.payments.reduce((s, p) => s + p.interest, 0) / loan.payments.length;
@@ -1055,7 +1067,7 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
 
         // If no interest breakdown available, estimate from rate if possible
         if (!hasInterestBreakdown && mortgage?.loans) {
-            for (const loan of mortgage.loans) {
+            for (const loan of activeLoans) {
                 if (loan.interestRate && loan.outstandingBalance) {
                     hasInterestBreakdown = true;
                     annualInterest += (loan.interestRate / 100) * loan.outstandingBalance;
@@ -1162,8 +1174,77 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
         return buildMonthBuckets(filteredTransactions, selectedFY);
     }, [filteredTransactions, selectedFY]);
 
+    // ─── Realised result for a sold property ─────────────────────────
+    // Uses ALL transactions (not FY-filtered): this is the whole-of-ownership
+    // summary, and the reason disposal.amount exists.
+    const realised = useMemo(() => {
+        const disposal = property.disposal;
+        if (!disposal) return null;
+        const fin = property.financials;
+        const allTxns = fin?.transactions || [];
+        const income = allTxns.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+        const expenses = allTxns.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+        const operatingNet = income - expenses;
+        const salePrice = disposal.amount;
+        const purchasePrice = fin?.purchasePrice;
+        const capitalGain = salePrice !== undefined && purchasePrice !== undefined ? salePrice - purchasePrice : undefined;
+        const gainPct = capitalGain !== undefined && purchasePrice ? (capitalGain / purchasePrice) * 100 : undefined;
+        let ownershipYears: number | undefined;
+        if (fin?.purchaseDate) {
+            const ms = new Date(disposal.date).getTime() - new Date(fin.purchaseDate).getTime();
+            if (!isNaN(ms) && ms > 0) ownershipYears = ms / (365.25 * 24 * 3600 * 1000);
+        }
+        const totalReturn = capitalGain !== undefined ? capitalGain + operatingNet : undefined;
+        return { disposal, salePrice, purchasePrice, capitalGain, gainPct, ownershipYears, operatingNet, totalReturn };
+    }, [property.disposal, property.financials]);
+
     return (
         <div className="space-y-6">
+            {/* Sold banner + realised result */}
+            {realised && (
+                <div className="rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                            <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-200">{realised.disposal.type}</span>
+                            {new Date(realised.disposal.date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            {realised.ownershipYears !== undefined && (
+                                <span className="font-normal text-slate-500 dark:text-slate-400">· held {realised.ownershipYears.toFixed(1)} years</span>
+                            )}
+                        </h3>
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500">Metrics below cover the ownership period only</span>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Sale price</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-white">{realised.salePrice !== undefined ? fmt(realised.salePrice) : '—'}</p>
+                            {realised.purchasePrice !== undefined && (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">bought for {fmt(realised.purchasePrice)}</p>
+                            )}
+                        </div>
+                        <div>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Capital gain</p>
+                            <p className={`text-lg font-bold ${realised.capitalGain === undefined ? 'text-slate-400' : realised.capitalGain >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {realised.capitalGain !== undefined ? fmtSigned(realised.capitalGain) : '—'}
+                            </p>
+                            {realised.gainPct !== undefined && (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400">{realised.gainPct >= 0 ? '+' : ''}{realised.gainPct.toFixed(1)}% on purchase</p>
+                            )}
+                        </div>
+                        <div>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Operating net (recorded)</p>
+                            <p className={`text-lg font-bold ${realised.operatingNet >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{fmtSigned(realised.operatingNet)}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">all recorded income − expenses</p>
+                        </div>
+                        <div>
+                            <p className="text-[11px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Total return</p>
+                            <p className={`text-lg font-bold ${realised.totalReturn === undefined ? 'text-slate-400' : realised.totalReturn >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {realised.totalReturn !== undefined ? fmtSigned(realised.totalReturn) : '—'}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">before selling costs & CGT</p>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Toggle + FY + Export + Valuation */}
             <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div className="flex items-center gap-3 flex-wrap">
