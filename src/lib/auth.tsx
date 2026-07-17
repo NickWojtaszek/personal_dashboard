@@ -36,8 +36,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return;
         }
 
+        // Safety net: if the auth service is unreachable — blocked by an ad/privacy
+        // extension, offline, or a deadlocked token-refresh lock — getSession() can
+        // hang forever. Without this the app sits on a blank loading spinner and
+        // "doesn't load". Fall through to the login screen with an error instead.
+        let settled = false;
+        const unreachable = 'Could not reach the sign-in service. Check your connection or disable any ad/privacy blocker for this site, then reload.';
+        const timer = setTimeout(() => {
+            if (!settled) {
+                settled = true;
+                setError(unreachable);
+                setLoading(false);
+            }
+        }, 6000);
+
         // Get initial session
         supabase.auth.getSession().then(({ data: { session: s } }) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
             setSession(s);
             setUser(s?.user ?? null);
             if (s?.user) {
@@ -45,6 +62,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } else {
                 setLoading(false);
             }
+        }).catch(() => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            setError(unreachable);
+            setLoading(false);
         });
 
         // Listen for auth changes (login, logout, token refresh)
@@ -60,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         });
 
-        return () => subscription.unsubscribe();
+        return () => { clearTimeout(timer); subscription.unsubscribe(); };
     }, []);
 
     async function checkAllowlist(email: string) {
