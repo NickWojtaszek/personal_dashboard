@@ -1,4 +1,6 @@
 import type { PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, DueDateItemSubType } from '../../types';
+import { getPropertyLabels } from '../../lib/countryLabels';
+import { addMonths, parseLocalDate, todayLocal } from '../../lib/dates';
 
 export interface DueDateItem {
     id: string;
@@ -16,6 +18,10 @@ export interface DueDateItem {
     status?: string;          // e.g. "Active", "Current", "Expired"
     // Navigation target
     section?: string;         // detail page section to scroll to
+    /** Id of the underlying record (e.g. CouncilTax.id) for row actions like dismiss. `id` is the parent property. */
+    recordId?: string;
+    /** No notice has arrived yet — this date is projected from the billing frequency. */
+    isPredicted?: boolean;
 }
 
 const monthMap: { [key: string]: number } = {
@@ -46,8 +52,7 @@ export function parseAllDueDates(
     contracts: ContractInfo[] = [],
 ): DueDateItem[] {
     const allDates: DueDateItem[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize to start of day
+    const today = todayLocal();
 
     properties.forEach(prop => {
         if (prop.disposal) return; // sold/disposed — no reminders
@@ -80,6 +85,47 @@ export function parseAllDueDates(
         }
         if (prop.operations?.compliance?.smokeAlarms?.nextCheck) {
             allDates.push({ id: prop.id, date: prop.operations.compliance.smokeAlarms.nextCheck, type: 'Property', subType: 'Smoke Alarm Check', sourceName: prop.name, section: 'compliance' });
+        }
+
+        // Council rates. Outstanding notices surface directly; once the last one is
+        // dismissed as paid we project the next from the property's billing cycle
+        // (Brisbane 3mo, Sunshine Coast 6mo) so the gap between notices stays visible
+        // — otherwise a notice that never arrives is silently missed until it's overdue.
+        const councilTax = prop.operations?.leaseholdCharges?.councilTax;
+        if (councilTax && councilTax.length > 0) {
+            const currency = getPropertyLabels(prop.country).currency;
+            const freq = prop.billingFrequencyMonths;
+            const amountFrequency = freq ? `${freq} Months` : undefined;
+            const billable = councilTax.filter(ct => !ct.paidByTenant);
+            const outstanding = billable.filter(ct => !ct.archivedAt);
+
+            if (outstanding.length > 0) {
+                outstanding.forEach(ct => {
+                    if (!ct.dueDate) return;
+                    allDates.push({
+                        id: prop.id, recordId: ct.id, date: ct.dueDate,
+                        type: 'Property', subType: 'Council Rates Due', sourceName: prop.name,
+                        detail: prop.overview?.address,
+                        startDate: ct.periodStart, endDate: ct.periodEnd,
+                        amount: ct.amountDue, amountFrequency, currency,
+                        section: 'councilTax',
+                    });
+                });
+            } else if (freq) {
+                // Sorting on the ISO date string is safe and, unlike `year`, distinguishes
+                // bills within the same year — which quarterly billing produces four of.
+                const latest = [...billable].sort((a, b) => (b.dueDate || '').localeCompare(a.dueDate || ''))[0];
+                const nextDue = latest?.dueDate ? addMonths(latest.dueDate, freq) : '';
+                if (nextDue) {
+                    allDates.push({
+                        id: prop.id, date: nextDue,
+                        type: 'Property', subType: 'Council Rates Due', sourceName: prop.name,
+                        detail: prop.overview?.address,
+                        amount: latest.amountDue, amountFrequency, currency,
+                        isPredicted: true, section: 'councilTax',
+                    });
+                }
+            }
         }
     });
 
@@ -141,13 +187,20 @@ export function parseAllDueDates(
         }
     });
 
+    // parseLocalDate, not new Date(str): the latter reads 'YYYY-MM-DD' as UTC midnight
+    // and comparing that against local midnight drops items due today in UTC- zones.
+    const at = (item: DueDateItem) => parseLocalDate(item.date)?.getTime() ?? 0;
+
     if (includeOverdue) {
-        return allDates.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        return allDates.sort((a, b) => at(a) - at(b));
     }
 
     return allDates
-        .filter(item => new Date(item.date) >= today)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        .filter(item => {
+            const d = parseLocalDate(item.date);
+            return d !== null && d.getTime() >= today.getTime();
+        })
+        .sort((a, b) => at(a) - at(b));
 }
 
 export function formatDistanceToNow(date: Date): string {
@@ -245,7 +298,9 @@ export function buildCostLineItems(
     // Property costs: mortgage, service charges, ground rent, council tax
     properties.forEach(prop => {
         if (prop.disposal) return; // sold/disposed — no cost forecast
-        const cur = 'GBP'; // properties are typically GBP in this app
+        // Derived from the property's country — AU rates are AUD, not GBP. The map
+        // in countryLabels.ts is the single source for currency + local terminology.
+        const cur = getPropertyLabels(prop.country).currency;
 
         // Mortgage
         if (prop.mortgage?.payments && prop.mortgage.payments.length > 0) {
@@ -289,18 +344,23 @@ export function buildCostLineItems(
             });
         }
 
-        // Council tax (latest year, only if not paid by tenant)
+        // Council rates (latest notice, only if not paid by tenant)
         const ct = prop.operations?.leaseholdCharges?.councilTax;
         if (ct && ct.length > 0) {
-            const latest = [...ct].sort((a, b) => b.year - a.year)[0];
+            // Sort on dueDate, not year: quarterly billing puts four notices in one
+            // year, so `year` cannot identify the latest one.
+            const latest = [...ct].sort((a, b) => (b.dueDate || '').localeCompare(a.dueDate || ''))[0];
             if (!latest.paidByTenant) {
+                // A notice covers billingFrequencyMonths, not a year. Dividing a
+                // quarterly notice by 12 under-reports the monthly cost 4x.
+                const periodMonths = prop.billingFrequencyMonths || 12;
                 items.push({
-                    name: `${prop.name} — Council Tax`,
+                    name: `${prop.name} — ${getPropertyLabels(prop.country).councilTax}`,
                     category: 'Property',
-                    monthlyAmount: latest.amountDue / 12,
+                    monthlyAmount: latest.amountDue / periodMonths,
                     currency: cur,
                     rawAmount: latest.amountDue,
-                    rawFrequency: `${latest.amountDue.toFixed(2)} / year`,
+                    rawFrequency: `${latest.amountDue.toFixed(2)} / ${periodMonths === 12 ? 'year' : `${periodMonths} months`}`,
                 });
             }
         }

@@ -3,20 +3,22 @@ import type { DueDateItem } from './dateUtils';
 import { formatDistanceToNow } from './dateUtils';
 import { BellIcon } from './Icons';
 import PolicyProgressBar from '../insurance-detail/PolicyProgressBar';
+import { addMonths, daysUntil as daysUntilShared, parseLocalDate, toLocalISO, todayLocal } from '../../lib/dates';
 
-const CURRENCY_SYMBOLS: Record<string, string> = { GBP: '\u00a3', USD: '$', AUD: 'A$', EUR: '\u20ac', PLN: 'z\u0142' };
+const CURRENCY_SYMBOLS: Record<string, string> = { GBP: '\u00a3', USD: '$', AUD: 'A$', NZD: 'NZ$', EUR: '\u20ac', PLN: 'z\u0142' };
 
 type RangeFilter = 3 | 6 | 12;
 
 interface DueDateOverviewProps {
     dueDates: DueDateItem[];
     onNavigate?: (item: DueDateItem) => void;
+    /** Dismiss a paid bill. Only offered for rows backed by a real record (`recordId`). */
+    onDismiss?: (item: DueDateItem) => void;
 }
 
+/** 0 when the date is today or unparseable \u2014 never treat those as overdue. */
 function daysUntil(dateStr: string): number {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    return Math.ceil((new Date(dateStr).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return daysUntilShared(dateStr) ?? 0;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -35,15 +37,17 @@ const TYPE_COLORS: Record<string, string> = {
     Invoice: 'bg-purple-500',
 };
 
-const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate }) => {
+const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate, onDismiss }) => {
     const [range, setRange] = useState<RangeFilter>(6);
 
     const filtered = useMemo(() => {
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        const cutoff = new Date(now);
-        cutoff.setMonth(cutoff.getMonth() + range);
-        return dueDates.filter(item => new Date(item.date) <= cutoff);
+        // addMonths clamps month-end; cutoff.setMonth() would overflow (31 Aug + 3 → 1 Dec)
+        // and silently widen the range by a day.
+        const cutoff = addMonths(toLocalISO(todayLocal()), range);
+        return dueDates.filter(item => {
+            const d = parseLocalDate(item.date);
+            return d !== null && item.date <= cutoff;
+        });
     }, [dueDates, range]);
 
     const overdue = filtered.filter(i => daysUntil(i.date) < 0);
@@ -60,19 +64,25 @@ const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate 
 
     const renderRow = (item: DueDateItem) => {
         const days = daysUntil(item.date);
-        const isOverdue = days < 0;
+        // A projected date isn't a real debt yet, so it must never read as overdue —
+        // the notice simply hasn't arrived.
+        const isOverdue = days < 0 && !item.isPredicted;
         const sym = CURRENCY_SYMBOLS[item.currency || ''] || '';
+        const canDismiss = Boolean(onDismiss && item.recordId);
 
         // Derive display status
         let displayStatus = item.status;
-        if (isOverdue) displayStatus = 'Expired';
+        if (item.isPredicted) displayStatus = 'Pending';
+        else if (isOverdue) displayStatus = 'Expired';
         else if (!displayStatus && days <= 30) displayStatus = 'Due Soon';
         else if (!displayStatus) displayStatus = 'Active';
 
         return (
             <div
-                key={item.id + item.subType}
-                className={`flex items-center gap-4 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors cursor-pointer ${isOverdue ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}
+                // recordId included: a property can carry several outstanding notices,
+                // which would otherwise collide on id+subType and drop rows.
+                key={`${item.id}:${item.subType}:${item.recordId ?? item.date}`}
+                className={`flex items-center gap-4 px-5 py-4 border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors cursor-pointer ${isOverdue ? 'bg-red-50/50 dark:bg-red-900/10' : ''} ${item.isPredicted ? 'opacity-60' : ''}`}
                 onClick={() => onNavigate?.(item)}
             >
                 {/* Type indicator dot */}
@@ -87,6 +97,9 @@ const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate 
                 {/* Sub-type */}
                 <div className="w-32 flex-shrink-0 hidden sm:block">
                     <p className="text-sm text-slate-600 dark:text-slate-300">{item.subType}</p>
+                    {item.isPredicted && (
+                        <p className="text-xs text-slate-400 dark:text-gray-500 italic">expected — no notice yet</p>
+                    )}
                 </div>
 
                 {/* Amount + frequency */}
@@ -126,6 +139,21 @@ const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate 
                         {displayStatus}
                     </span>
                 </div>
+
+                {/* Dismiss action */}
+                <div className="w-16 flex-shrink-0 text-right">
+                    {canDismiss && (
+                        <button
+                            // The row itself navigates; without stopPropagation, dismissing
+                            // would also jump to the property detail page.
+                            onClick={e => { e.stopPropagation(); onDismiss!(item); }}
+                            className="px-2 py-0.5 text-xs rounded-full font-medium bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900/50 dark:text-green-300 dark:hover:bg-green-900/80 transition-colors"
+                            title="Mark paid and archive to the property"
+                        >
+                            Paid
+                        </button>
+                    )}
+                </div>
             </div>
         );
     };
@@ -150,6 +178,7 @@ const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate 
                 <div className="flex-grow hidden lg:block">Progress</div>
                 <div className="flex-grow lg:hidden">Due</div>
                 <div className="w-20 flex-shrink-0 text-right">Status</div>
+                <div className="w-16 flex-shrink-0" />
             </div>
 
             <div className="max-h-[65vh] overflow-y-auto">

@@ -3,6 +3,8 @@ import type { PropertyInfo, CouncilTax } from '../../types';
 import { ReceiptPercentIcon, EditIcon, SaveIcon, TrashIcon, PlusIcon, ExternalLinkIcon } from './Icons';
 import { v4 as uuidv4 } from 'uuid';
 import { getPropertyLabels } from '../../lib/countryLabels';
+import { parseLocalDate, todayLocal } from '../../lib/dates';
+import { markRatesPaid } from '../../lib/councilRates';
 
 interface CouncilTaxSectionProps {
     property: PropertyInfo;
@@ -22,17 +24,20 @@ const CouncilTaxSection: React.FC<CouncilTaxSectionProps> = ({ property, isEditi
     // editing render ran one fewer hook than the view render, so toggling Edit blew
     // up with React #300 ("Rendered more hooks than expected").
     const [showClearConfirm, setShowClearConfirm] = useState(false);
+    // Lives on the property, not on operations, so it's tracked separately from editedData.
+    const [billingFreq, setBillingFreq] = useState<number | undefined>(property.billingFrequencyMonths);
 
     const labels = getPropertyLabels(property.country);
 
     useEffect(() => {
         if (isEditing) {
             setEditedData(JSON.parse(JSON.stringify(property.operations || {})));
+            setBillingFreq(property.billingFrequencyMonths);
         }
     }, [property, isEditing]);
 
     const handleSave = () => {
-        onSave({ ...property, operations: editedData });
+        onSave({ ...property, billingFrequencyMonths: billingFreq, operations: editedData });
     };
 
     const handleItemChange = (itemId: string, field: keyof CouncilTax, value: any) => {
@@ -87,23 +92,30 @@ const CouncilTaxSection: React.FC<CouncilTaxSectionProps> = ({ property, isEditi
     
     const getStatus = (charge: CouncilTax) => {
         if (charge.paidByTenant) return { text: 'Paid by Tenant', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' };
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dueDate = new Date(charge.dueDate);
-        
         if (charge.amountPaid >= charge.amountDue && charge.amountDue > 0) return { text: 'Paid', color: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' };
-        if (dueDate < today && charge.amountPaid < charge.amountDue) return { text: 'Overdue', color: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' };
+        // parseLocalDate, not new Date(str): the latter is UTC midnight and would mark
+        // a bill due today as overdue in UTC- zones.
+        const dueDate = parseLocalDate(charge.dueDate);
+        if (dueDate && dueDate.getTime() < todayLocal().getTime() && charge.amountPaid < charge.amountDue) return { text: 'Overdue', color: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300' };
         if (charge.amountPaid > 0) return { text: 'Part Paid', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300' };
         return { text: 'Due', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300' };
     };
 
+    // Same effect as dismissing the row on the dashboard — shared helper so the two
+    // paths can't drift. The record stays here as history; only the overview drops it.
     const handleMarkPaid = (itemId: string) => {
-        const updatedProperty = JSON.parse(JSON.stringify(property)) as PropertyInfo;
-        if (!updatedProperty.operations?.leaseholdCharges?.councilTax) return;
-        const item = updatedProperty.operations.leaseholdCharges.councilTax.find(ct => ct.id === itemId);
-        if (!item) return;
-        item.amountPaid = item.amountDue;
-        onSave(updatedProperty);
+        const list = property.operations?.leaseholdCharges?.councilTax;
+        if (!list?.some(ct => ct.id === itemId)) return;
+        onSave({
+            ...property,
+            operations: {
+                ...property.operations,
+                leaseholdCharges: {
+                    ...property.operations!.leaseholdCharges,
+                    councilTax: list.map(ct => ct.id === itemId ? markRatesPaid(ct) : ct),
+                },
+            },
+        });
     };
 
     const isUrl = (text: string) => text.startsWith('http://') || text.startsWith('https://');
@@ -119,6 +131,24 @@ const CouncilTaxSection: React.FC<CouncilTaxSectionProps> = ({ property, isEditi
                     <h2 className="text-xl font-bold flex items-center gap-3"><ReceiptPercentIcon /> Editing {labels.councilTax}</h2>
                 </div>
                 <div className="p-6 space-y-4">
+                    {/* Billing cycle — drives the predicted next due date on the dashboard
+                        and the monthly cost forecast. Without it, nothing is projected. */}
+                    <div className="p-3 border border-slate-200 dark:border-slate-700 rounded-lg">
+                        <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+                            Billing cycle — how often the council issues a notice
+                        </label>
+                        <select
+                            value={billingFreq ?? ''}
+                            onChange={e => setBillingFreq(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                            className="w-full bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary outline-none transition"
+                        >
+                            <option value="">Not set — no next notice predicted</option>
+                            <option value="3">Every 3 months (quarterly)</option>
+                            <option value="6">Every 6 months (half-yearly)</option>
+                            <option value="12">Every 12 months (annually)</option>
+                        </select>
+                    </div>
+
                     {councilTaxCharges.map((charge) => {
                         const isPaidByTenant = charge.paidByTenant || false;
                         return (

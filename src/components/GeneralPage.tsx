@@ -18,11 +18,12 @@ interface GeneralPageProps {
     vehicles: VehicleInfo[];
     onNewInvoice: () => void;
     onNavigate?: (item: DueDateItem) => void;
+    onDismissDueDate?: (item: DueDateItem) => void;
     unreadEmailCount?: number;
     onGoToEmail?: () => void;
 }
 
-const GeneralPage: React.FC<GeneralPageProps> = ({ properties, insurancePolicies, contracts, invoices, vehicles, onNewInvoice, onNavigate, unreadEmailCount, onGoToEmail }) => {
+const GeneralPage: React.FC<GeneralPageProps> = ({ properties, insurancePolicies, contracts, invoices, vehicles, onNewInvoice, onNavigate, onDismissDueDate, unreadEmailCount, onGoToEmail }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
 
     // Include overdue for the list view
@@ -88,7 +89,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({ properties, insurancePolicies
 
             {/* Main content area */}
             {viewMode === 'list' && (
-                <DueDateOverview dueDates={allDueDates} onNavigate={onNavigate} />
+                <DueDateOverview dueDates={allDueDates} onNavigate={onNavigate} onDismiss={onDismissDueDate} />
             )}
 
             {viewMode === 'calendar' && (

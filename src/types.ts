@@ -279,12 +279,29 @@ export interface GroundRent {
 
 export interface CouncilTax {
     id: string;
+    /**
+     * Calendar year of the bill. Kept for backwards compatibility with existing
+     * records and the section's sort order — it predates periodic billing and
+     * cannot express a quarter, so use periodStart/periodEnd for the actual period.
+     */
     year: number;
     amountDue: number;
     amountPaid: number;
     dueDate: string; // YYYY-MM-DD
     paymentDetails?: string;
     paidByTenant?: boolean;
+    /** Billing period this notice covers (AU councils bill quarterly or half-yearly). */
+    periodStart?: string; // YYYY-MM-DD
+    periodEnd?: string;   // YYYY-MM-DD
+    /** When it was actually paid. Needed to anchor the next period; `amountPaid >= amountDue` records no date. */
+    paidAt?: string;      // YYYY-MM-DD
+    /**
+     * Set when the bill is dismissed from the dashboard. The record stays on the
+     * property as history; only the overview filters it out.
+     */
+    archivedAt?: string;  // ISO timestamp
+    /** The rate notice itself, attached to the bill rather than the generic doc bucket. */
+    document?: Document;
 }
 
 export interface PropertyOperations {
@@ -415,6 +432,12 @@ export interface PropertyInfo {
     name: string;
     location: string;
     country?: PropertyCountry;
+    /**
+     * How often the council bills rates, in months (Brisbane = 3, Sunshine Coast = 6).
+     * Anchors the predicted next due date after a bill is dismissed. Property-level
+     * because a property sits in exactly one council area.
+     */
+    billingFrequencyMonths?: number;
     url: string;
     groups?: string[];
     overview?: PropertyOverview;
@@ -584,4 +607,4 @@ export interface CorrespondenceStore {
     gmailSync: GmailSyncConfig;
     threads: ConversationThread[];
 }
-export type DueDateItemSubType = 'Lease End' | 'Next Inspection' | 'Insurance End' | 'Smoke Alarm Check' | 'Policy Renewal' | 'Policy End' | 'EICR Due' | 'Gas Safety Due' | 'Rego Expiry' | 'Rego Due' | 'Contract Expiry';
+export type DueDateItemSubType = 'Lease End' | 'Next Inspection' | 'Insurance End' | 'Smoke Alarm Check' | 'Policy Renewal' | 'Policy End' | 'EICR Due' | 'Gas Safety Due' | 'Rego Expiry' | 'Rego Due' | 'Contract Expiry' | 'Council Rates Due';

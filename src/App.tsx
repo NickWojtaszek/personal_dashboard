@@ -44,6 +44,7 @@ import DisposeAssetModal from './components/DisposeAssetModal';
 import type { DueDateItem } from './components/general/dateUtils';
 import { loadAllItems, saveAllItems } from './lib/storage';
 import { openDocument } from './lib/documents';
+import { markRatesPaid } from './lib/councilRates';
 import { arrayMove } from '@dnd-kit/sortable';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -332,6 +333,31 @@ const App: React.FC = () => {
         else if (item.type === 'Insurance') { setSelectedInsuranceId(item.id); setSelectedPropertyId(null); setSelectedVehicleId(null); }
         else if (item.type === 'Vehicle') { setSelectedVehicleId(item.id); setSelectedPropertyId(null); setSelectedInsuranceId(null); }
         setScrollToSection(item.section || null);
+    }, []);
+
+    /**
+     * Dismiss a paid bill from the dashboard. The record is not deleted — it keeps
+     * living on the property as history, stamped with when it was paid and archived.
+     * `paidAt` is what anchors the next predicted due date; `amountPaid >= amountDue`
+     * alone records no date and so cannot drive the cycle.
+     */
+    const handleDismissDueDate = useCallback((item: DueDateItem) => {
+        if (item.type !== 'Property' || !item.recordId) return;
+        setProperties(prev => prev.map(p => {
+            if (p.id !== item.id) return p;
+            const councilTax = p.operations?.leaseholdCharges?.councilTax;
+            if (!councilTax?.some(ct => ct.id === item.recordId)) return p;
+            return {
+                ...p,
+                operations: {
+                    ...p.operations,
+                    leaseholdCharges: {
+                        ...p.operations!.leaseholdCharges,
+                        councilTax: councilTax.map(ct => ct.id === item.recordId ? markRatesPaid(ct) : ct),
+                    },
+                },
+            };
+        }));
     }, []);
 
     // --- App Launcher Handlers ---
@@ -833,6 +859,7 @@ const App: React.FC = () => {
                             vehicles={vehicles}
                             onNewInvoice={handleNewInvoice}
                             onNavigate={handleDashboardNavigate}
+                            onDismissDueDate={handleDismissDueDate}
                             unreadEmailCount={unreadCount}
                             onGoToEmail={() => setPage('correspondence')}
                         />;
