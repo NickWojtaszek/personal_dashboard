@@ -126,6 +126,44 @@ describe('parseAllDueDates — predicted next notice', () => {
     });
 });
 
+describe('progress bar period — DueDateOverview draws a bar only when both ends are set', () => {
+    it('approximates the period from the billing cycle when the notice does not state one', () => {
+        const items = councilRates([
+            withRates([rates({ id: 'r1', dueDate: '2026-08-31' })], { billingFrequencyMonths: 3 }),
+        ]);
+        expect(items[0].startDate).toBe('2026-05-31'); // dueDate − 3 months, clamped
+        expect(items[0].endDate).toBe('2026-08-31');
+    });
+
+    it('prefers the real period from the notice over the approximation', () => {
+        const items = councilRates([
+            withRates(
+                [rates({ id: 'r1', dueDate: '2026-08-31', periodStart: '2026-06-01', periodEnd: '2026-08-31' })],
+                { billingFrequencyMonths: 3 },
+            ),
+        ]);
+        expect(items[0].startDate).toBe('2026-06-01');
+        expect(items[0].endDate).toBe('2026-08-31');
+    });
+
+    it('gives the projected row a bar spanning last notice → next expected', () => {
+        const items = councilRates([
+            withRates(
+                [rates({ id: 'r1', dueDate: '2026-07-17', archivedAt: '2026-07-18T10:00:00.000Z' })],
+                { billingFrequencyMonths: 6 },
+            ),
+        ]);
+        expect(items[0].startDate).toBe('2026-07-17');
+        expect(items[0].endDate).toBe('2027-01-17');
+    });
+
+    it('leaves startDate undefined when neither a period nor a cycle is known', () => {
+        // Nothing to approximate from — the row correctly falls back to text.
+        const items = councilRates([withRates([rates({ id: 'r1', dueDate: '2026-08-31' })])]);
+        expect(items[0].startDate).toBeUndefined();
+    });
+});
+
 describe('buildCostLineItems — periodic rates', () => {
     const rateLine = (p: PropertyInfo) =>
         buildCostLineItems([], [], [p]).find(i => i.name.includes('Council Rates'))!;

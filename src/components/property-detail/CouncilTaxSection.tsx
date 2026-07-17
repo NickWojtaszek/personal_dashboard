@@ -159,6 +159,18 @@ const CouncilTaxSection: React.FC<CouncilTaxSectionProps> = ({ property, isEditi
                                 <Input type="number" placeholder="Amount Due" value={charge.amountDue} disabled={isPaidByTenant} onChange={e => handleItemChange(charge.id, 'amountDue', parseFloat(e.target.value) || 0)} />
                                 <Input type="number" placeholder="Amount Paid" value={charge.amountPaid} disabled={isPaidByTenant} onChange={e => handleItemChange(charge.id, 'amountPaid', parseFloat(e.target.value) || 0)} />
                             </div>
+                            {/* Billing period the notice covers. Optional — left blank, the
+                                dashboard approximates it from the billing cycle. */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Period start (optional)</label>
+                                    <Input type="date" value={charge.periodStart || ''} disabled={isPaidByTenant} onChange={e => handleItemChange(charge.id, 'periodStart', e.target.value || undefined)} />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Period end (optional)</label>
+                                    <Input type="date" value={charge.periodEnd || ''} disabled={isPaidByTenant} onChange={e => handleItemChange(charge.id, 'periodEnd', e.target.value || undefined)} />
+                                </div>
+                            </div>
                             <div className="flex items-center gap-2">
                                  <Input type="text" placeholder="Payment Details (URL or Authority)" value={charge.paymentDetails} onChange={e => handleItemChange(charge.id, 'paymentDetails', e.target.value)} />
                                 <button type="button" onClick={() => removeItem(charge.id)} className="p-2 text-red-500 hover:text-red-700"><TrashIcon /></button>

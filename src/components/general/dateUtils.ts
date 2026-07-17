@@ -102,11 +102,16 @@ export function parseAllDueDates(
             if (outstanding.length > 0) {
                 outstanding.forEach(ct => {
                     if (!ct.dueDate) return;
+                    // The period drives the progress bar. Prefer what the notice actually
+                    // says; otherwise approximate it from the billing cycle so the row
+                    // still gets a bar instead of falling back to bare text.
+                    const periodEnd = ct.periodEnd || ct.dueDate;
+                    const periodStart = ct.periodStart || (freq ? addMonths(ct.dueDate, -freq) : '');
                     allDates.push({
                         id: prop.id, recordId: ct.id, date: ct.dueDate,
                         type: 'Property', subType: 'Council Rates Due', sourceName: prop.name,
                         detail: prop.overview?.address,
-                        startDate: ct.periodStart, endDate: ct.periodEnd,
+                        startDate: periodStart || undefined, endDate: periodEnd,
                         amount: ct.amountDue, amountFrequency, currency,
                         section: 'councilTax',
                     });
@@ -121,6 +126,9 @@ export function parseAllDueDates(
                         id: prop.id, date: nextDue,
                         type: 'Property', subType: 'Council Rates Due', sourceName: prop.name,
                         detail: prop.overview?.address,
+                        // Both ends are known exactly here, so the bar honestly tracks the
+                        // wait between the last notice and the next one that's due.
+                        startDate: latest.dueDate, endDate: nextDue,
                         amount: latest.amountDue, amountFrequency, currency,
                         isPredicted: true, section: 'councilTax',
                     });
