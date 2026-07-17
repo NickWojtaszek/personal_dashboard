@@ -17,6 +17,7 @@ import CouncilTaxSection from './property-detail/CouncilTaxSection';
 import CorrespondenceSection from './property-detail/CorrespondenceSection';
 import ThreadsSection from './property-detail/ThreadsSection';
 import FinancialHealthSection from './property-detail/FinancialHealthSection';
+import PropertyDataGaps from './property-detail/PropertyDataGaps';
 import DocumentsContainer from './DocumentsContainer';
 import PrintModal from './property-detail/PrintModal';
 import PrintablePropertyReport from './property-detail/PrintablePropertyReport';
@@ -727,6 +728,9 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                 )}
                 {viewMode === 'details' && (
                 <>
+                {/* Expected-but-missing recurring records (council, strata, rent, insurance) */}
+                <PropertyDataGaps property={property} insurancePolicies={insurancePolicies} />
+
                 {/* Duplicate detection — manual scan entry point */}
                 {duplicateWarnings.length === 0 && (property.financials?.transactions?.length || 0) >= 2 && (
                     <div className="flex justify-end">
