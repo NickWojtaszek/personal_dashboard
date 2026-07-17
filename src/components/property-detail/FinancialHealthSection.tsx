@@ -1,50 +1,67 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import type { PropertyInfo, FinancialTransaction } from '../../types';
+import type { PropertyInfo, FinancialTransaction, InsuranceInfo, PropertyCountry } from '../../types';
+import { taxYearRange, taxYearLabel, availableTaxYears, inTaxYear } from '../../lib/taxYear';
+import { downloadFile } from '../../lib/download';
 
 interface FinancialHealthSectionProps {
     property: PropertyInfo;
     onSave: (property: PropertyInfo) => void;
+    /** Policies linked to this property (InsuranceInfo.propertyId === property.id). */
+    insurancePolicies?: InsuranceInfo[];
 }
 
 const CURRENCY_SYMBOLS: Record<string, string> = { AUD: '$', USD: '$', GBP: '£', EUR: '€', NZD: '$', PLN: 'zł' };
 
-// ─── FY helpers (AU: 1 Jul – 30 Jun) ──────────────────────────────
-function getFYLabel(fyStartYear: number): string {
-    return `FY ${fyStartYear}/${(fyStartYear + 1).toString().slice(-2)}`;
-}
-
-function getFYRange(fyStartYear: number): { start: string; end: string } {
-    return {
-        start: `${fyStartYear}-07-01`,
-        end: `${fyStartYear + 1}-06-30`,
-    };
-}
-
-function getAvailableFYs(transactions: FinancialTransaction[]): number[] {
-    const years = new Set<number>();
-    for (const t of transactions) {
-        if (!t.date) continue;
-        const d = new Date(t.date);
-        if (isNaN(d.getTime())) continue;
-        // AU FY: Jul-Jun. Month < 7 (Jan-Jun) = previous year's FY
-        const fy = d.getMonth() < 6 ? d.getFullYear() - 1 : d.getFullYear();
-        years.add(fy);
-    }
-    return Array.from(years).sort((a, b) => b - a);
-}
-
-function filterByFY(transactions: FinancialTransaction[], fyStartYear: number | null): FinancialTransaction[] {
+// Tax-year filter for a list of transactions. null = all time.
+function filterByFY(transactions: FinancialTransaction[], country: PropertyCountry | undefined, fyStartYear: number | null): FinancialTransaction[] {
     if (fyStartYear === null) return transactions;
-    const { start, end } = getFYRange(fyStartYear);
-    return transactions.filter(t => t.date && t.date >= start && t.date <= end);
+    return transactions.filter(t => inTaxYear(country, fyStartYear, t.date));
+}
+
+interface InsuranceLine { label: string; period: string; amount: number; currency: string; foreign: boolean }
+
+/**
+ * Insurance cost attributable to a tax year, on a CASH basis: a premium counts
+ * in the year its payment/renewal (or a history period's start) falls. Monthly
+ * premiums are annualised (×12); other frequencies taken as the annual figure.
+ * Policies in a different currency than the property are listed but excluded from
+ * the total (no FX conversion). null FY = all time (every policy + history entry).
+ */
+function insuranceForTaxYear(
+    policies: InsuranceInfo[] | undefined,
+    country: PropertyCountry | undefined,
+    selectedFY: number | null,
+    propertyCurrency: string,
+): { total: number; lines: InsuranceLine[]; hasForeign: boolean } {
+    const lines: InsuranceLine[] = [];
+    let total = 0;
+    let hasForeign = false;
+    const annualise = (amt?: number, freq?: string) => (amt ? (freq === 'Monthly' ? amt * 12 : amt) : 0);
+    const consider = (label: string, period: string, cashDate: string | undefined, amount?: number, freq?: string, cur?: string) => {
+        const annual = annualise(amount, freq);
+        if (!annual) return;
+        if (selectedFY !== null && !inTaxYear(country, selectedFY, cashDate)) return;
+        const foreign = !!cur && cur !== propertyCurrency;
+        if (foreign) hasForeign = true; else total += annual;
+        lines.push({ label, period, amount: annual, currency: cur || propertyCurrency, foreign });
+    };
+    for (const p of policies || []) {
+        if (p.status === 'Archived') continue;
+        consider(p.name || 'Insurance', `${p.startDate || '?'} – ${p.endDate || p.renewalDate || '?'}`, p.startDate || p.renewalDate, p.premiumAmount, p.paymentFrequency, p.currency);
+        for (const h of p.history || []) {
+            consider(`${p.name || 'Insurance'} (prior period)`, `${h.periodStart} – ${h.periodEnd}`, h.periodStart, h.premiumAmount, h.paymentFrequency, h.currency);
+        }
+    }
+    return { total, lines, hasForeign };
 }
 
 // ─── CSV export ────────────────────────────────────────────────────
-function generateTaxCSV(property: PropertyInfo, transactions: FinancialTransaction[], fyLabel: string, selectedFY: number | null): string {
+function generateTaxCSV(property: PropertyInfo, transactions: FinancialTransaction[], fyLabel: string, selectedFY: number | null, insurancePolicies?: InsuranceInfo[]): string {
     const fin = property.financials;
     const mortgage = property.mortgage;
-    const symbol = CURRENCY_SYMBOLS[fin?.currency || 'AUD'] || '$';
+    const currencyCode = fin?.currency || 'AUD';
+    const symbol = CURRENCY_SYMBOLS[currencyCode] || '$';
 
     const lines: string[] = [];
     const row = (...cols: (string | number | undefined)[]) =>
@@ -167,7 +184,7 @@ function generateTaxCSV(property: PropertyInfo, transactions: FinancialTransacti
 
     // Strata / Body Corporate & Council Rates from Operations (filtered by FY)
     const ops = property.operations?.leaseholdCharges;
-    const csvFyRange = selectedFY !== null ? getFYRange(selectedFY) : null;
+    const csvFyRange = selectedFY !== null ? taxYearRange(property.country, selectedFY) : null;
     const csvInFY = (dueDate?: string, year?: number): boolean => {
         if (!csvFyRange) return true;
         if (dueDate && dueDate >= csvFyRange.start && dueDate <= csvFyRange.end) return true;
@@ -203,6 +220,18 @@ function generateTaxCSV(property: PropertyInfo, transactions: FinancialTransacti
         row();
     }
 
+    // Insurance from linked policies (cash basis, filtered by FY)
+    const csvInsurance = insuranceForTaxYear(insurancePolicies, property.country, selectedFY, currencyCode);
+    if (csvInsurance.lines.length > 0) {
+        row('INSURANCE');
+        row('Policy', 'Period', 'Annual Premium', 'Currency', 'In Total');
+        for (const l of csvInsurance.lines) {
+            row(l.label, l.period, l.amount, l.currency, l.foreign ? 'No (different currency)' : 'Yes');
+        }
+        row('Total (property currency)', csvInsurance.total);
+        row();
+    }
+
     // Depreciation
     row('DEPRECIATION');
     row('Annual Depreciation (from QS report)', fin?.annualDepreciation || 'Not set');
@@ -225,18 +254,21 @@ function generateTaxCSV(property: PropertyInfo, transactions: FinancialTransacti
     // Summary — include strata & council if not already in transactions
     row('TAX SUMMARY');
     const depreciation = fin?.annualDepreciation || 0;
-    // Check if strata/council are already captured as transaction expenses to avoid double-counting
+    // Check if strata/council/insurance are already captured as transaction expenses to avoid double-counting
     const hasStrataInTxns = expenseItems.some(t => t.category === 'Body Corporate');
     const hasCouncilInTxns = expenseItems.some(t => t.category === 'Council Rates');
+    const hasInsuranceInTxns = expenseItems.some(t => t.category === 'Insurance');
     const additionalStrata = hasStrataInTxns ? 0 : strataTotal;
     const additionalCouncil = hasCouncilInTxns ? 0 : councilTotal;
-    const totalDeductions = totalExpenses + additionalStrata + additionalCouncil;
+    const additionalInsurance = hasInsuranceInTxns ? 0 : csvInsurance.total;
+    const totalDeductions = totalExpenses + additionalStrata + additionalCouncil + additionalInsurance;
 
     row('Total Rental Income', totalIncome);
     row('Total Operating Expenses (transactions)', totalExpenses);
     if (additionalStrata > 0) row('+ Strata/Body Corporate (from Operations)', additionalStrata);
     if (additionalCouncil > 0) row('+ Council Rates (from Operations)', additionalCouncil);
-    if (additionalStrata > 0 || additionalCouncil > 0) row('Total Deductible Expenses', totalDeductions);
+    if (additionalInsurance > 0) row('+ Insurance (from linked policies)', additionalInsurance);
+    if (additionalStrata > 0 || additionalCouncil > 0 || additionalInsurance > 0) row('Total Deductible Expenses', totalDeductions);
     row(`Loan Interest (${csvInterestSource || 'no loans'})`, Math.round(csvInterest));
     row('Depreciation', depreciation);
     const taxableIncome = totalIncome - totalDeductions - csvInterest - depreciation;
@@ -260,21 +292,12 @@ function generateTaxCSV(property: PropertyInfo, transactions: FinancialTransacti
     return lines.join('\n');
 }
 
-function downloadCSV(content: string, filename: string) {
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-// ─── PDF export (print-friendly HTML) ────────────────────────────
-function generateTaxPDF(property: PropertyInfo, transactions: FinancialTransaction[], fyLabel: string, selectedFY: number | null) {
+// ─── HTML export (self-contained, downloadable & print-friendly) ──
+function generateTaxHTML(property: PropertyInfo, transactions: FinancialTransaction[], fyLabel: string, selectedFY: number | null, insurancePolicies?: InsuranceInfo[]): string {
     const fin = property.financials;
     const mortgage = property.mortgage;
-    const sym = CURRENCY_SYMBOLS[fin?.currency || 'AUD'] || '$';
+    const currencyCode = fin?.currency || 'AUD';
+    const sym = CURRENCY_SYMBOLS[currencyCode] || '$';
     const fmtC = (n: number) => `${sym}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const fmtD = (d?: string) => d ? new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
@@ -336,7 +359,7 @@ function generateTaxPDF(property: PropertyInfo, transactions: FinancialTransacti
 
     // Strata / Body Corporate & Council Rates from Operations (filtered by FY)
     const pdfOps = property.operations?.leaseholdCharges;
-    const pdfFyRange = selectedFY !== null ? getFYRange(selectedFY) : null;
+    const pdfFyRange = selectedFY !== null ? taxYearRange(property.country, selectedFY) : null;
     const pdfInFY = (dueDate?: string, year?: number): boolean => {
         if (!pdfFyRange) return true;
         if (dueDate && dueDate >= pdfFyRange.start && dueDate <= pdfFyRange.end) return true;
@@ -355,12 +378,17 @@ function generateTaxPDF(property: PropertyInfo, transactions: FinancialTransacti
             if (!ct.paidByTenant && pdfInFY(ct.dueDate, ct.year)) pdfCouncilTotal += ct.amountPaid || ct.amountDue;
         }
     }
+    // Insurance from linked policies (cash basis, filtered by FY)
+    const pdfInsurance = insuranceForTaxYear(insurancePolicies, property.country, selectedFY, currencyCode);
+
     // Avoid double-counting if already in transactions
     const pdfHasStrataInTxns = expenseItems.some(t => t.category === 'Body Corporate');
     const pdfHasCouncilInTxns = expenseItems.some(t => t.category === 'Council Rates');
+    const pdfHasInsuranceInTxns = expenseItems.some(t => t.category === 'Insurance');
     const pdfAdditionalStrata = pdfHasStrataInTxns ? 0 : pdfStrataTotal;
     const pdfAdditionalCouncil = pdfHasCouncilInTxns ? 0 : pdfCouncilTotal;
-    const pdfTotalDeductions = totalExpenses + pdfAdditionalStrata + pdfAdditionalCouncil;
+    const pdfAdditionalInsurance = pdfHasInsuranceInTxns ? 0 : pdfInsurance.total;
+    const pdfTotalDeductions = totalExpenses + pdfAdditionalStrata + pdfAdditionalCouncil + pdfAdditionalInsurance;
 
     // Warnings
     const warnings: string[] = [];
@@ -408,7 +436,7 @@ function generateTaxPDF(property: PropertyInfo, transactions: FinancialTransacti
 
 <div class="summary-grid">
   <div class="summary-box"><div class="label">Total Rental Income</div><div class="value" style="color:#16a34a">${fmtC(totalIncome)}</div></div>
-  <div class="summary-box"><div class="label">Total Deductible Expenses</div><div class="value" style="color:#dc2626">${fmtC(pdfTotalDeductions)}</div>${pdfAdditionalStrata > 0 || pdfAdditionalCouncil > 0 ? `<div class="note">Includes${pdfAdditionalStrata > 0 ? ` strata ${fmtC(pdfAdditionalStrata)}` : ''}${pdfAdditionalCouncil > 0 ? ` council ${fmtC(pdfAdditionalCouncil)}` : ''} from Operations</div>` : ''}</div>
+  <div class="summary-box"><div class="label">Total Deductible Expenses</div><div class="value" style="color:#dc2626">${fmtC(pdfTotalDeductions)}</div>${pdfAdditionalStrata > 0 || pdfAdditionalCouncil > 0 || pdfAdditionalInsurance > 0 ? `<div class="note">Includes${pdfAdditionalStrata > 0 ? ` strata ${fmtC(pdfAdditionalStrata)}` : ''}${pdfAdditionalCouncil > 0 ? ` council ${fmtC(pdfAdditionalCouncil)}` : ''}${pdfAdditionalInsurance > 0 ? ` insurance ${fmtC(pdfAdditionalInsurance)}` : ''} from Operations</div>` : ''}</div>
   <div class="summary-box"><div class="label">Loan Interest (annual)</div><div class="value">${fmtC(interestDeduction)}</div>${interestSource ? `<div class="note">${interestSource}</div>` : ''}</div>
   <div class="summary-box"><div class="label">Depreciation</div><div class="value">${depreciation > 0 ? fmtC(depreciation) : 'Not set'}</div></div>
 </div>
@@ -484,6 +512,14 @@ ${(pdfOps?.councilTax || []).map(ct => `<tr><td style="${tdStyle}">${ct.year}</t
 <tr style="${totalRow}"><td style="${tdStyle}">Owner-paid Total</td><td style="${tdRight}"></td><td style="${tdRight}">${fmtC(pdfCouncilTotal)}</td><td style="${tdStyle}" colspan="2"></td></tr>
 </table>` : ''}
 
+${pdfInsurance.lines.length > 0 ? `<h2>Insurance</h2>
+<table style="${tableStyle}">
+<tr><th style="${thStyle}">Policy</th><th style="${thStyle}">Period</th><th style="${thStyle};text-align:right">Annual Premium</th><th style="${thStyle}">In Total</th></tr>
+${pdfInsurance.lines.map(l => `<tr><td style="${tdStyle}">${l.label}</td><td style="${tdStyle}">${l.period}</td><td style="${tdRight}">${sym}${l.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${l.foreign ? ` ${l.currency}` : ''}</td><td style="${tdStyle}">${l.foreign ? 'No — different currency' : 'Yes'}</td></tr>`).join('')}
+<tr style="${totalRow}"><td style="${tdStyle}" colspan="2">Total (property currency)</td><td style="${tdRight}">${fmtC(pdfInsurance.total)}</td><td style="${tdStyle}"></td></tr>
+</table>
+<p class="note">Cash basis — premium counted in the tax year its payment/renewal falls. Not duplicated where an Insurance transaction already exists.</p>` : ''}
+
 ${depreciation > 0 || fin?.buildYear ? `<h2>Depreciation</h2>
 <p>Annual depreciation (from QS report): <b>${depreciation > 0 ? fmtC(depreciation) : 'Not set'}</b></p>
 ${fin?.buildYear ? `<p>Build year: ${fin.buildYear}${fin.buildYear >= 1987 ? ' (Div 43 eligible)' : ' (pre-1987 — Div 43 may not apply)'}</p>` : ''}` : ''}
@@ -501,13 +537,7 @@ ${[
 <p class="note">This report is generated from data entered into the property dashboard. Figures are estimates only and should be verified by your accountant. Interest figures may be estimated from loan rates where payment breakdowns are unavailable.</p>
 </body></html>`;
 
-    const w = window.open('', '_blank');
-    if (w) {
-        w.document.write(html);
-        w.document.close();
-        // Slight delay to let styles render before print dialog
-        setTimeout(() => w.print(), 300);
-    }
+    return html;
 }
 
 // ─── Editable valuation inline form ──────────────────────────────
@@ -931,7 +961,7 @@ const MonthlyCashFlowChart: React.FC<{ buckets: MonthBucket[]; symbol: string }>
 };
 
 // ─── Main component ──────────────────────────────────────────────
-const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ property, onSave }) => {
+const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ property, onSave, insurancePolicies }) => {
     // For a sold property "Total to Date" is the meaningful default —
     // annualised projections describe a holding you no longer have.
     const [annualised, setAnnualised] = useState(!property.disposal);
@@ -939,27 +969,34 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
 
     const currency = property.financials?.currency || 'AUD';
     const symbol = CURRENCY_SYMBOLS[currency] || currency + ' ';
+    const country = property.country;
 
-    const availableFYs = useMemo(() => getAvailableFYs(property.financials?.transactions || []), [property.financials?.transactions]);
+    const availableFYs = useMemo(
+        () => availableTaxYears(country, (property.financials?.transactions || []).map(t => t.date)),
+        [property.financials?.transactions, country]
+    );
 
     // Filter transactions by selected FY
     const filteredTransactions = useMemo(
-        () => filterByFY(property.financials?.transactions || [], selectedFY),
-        [property.financials?.transactions, selectedFY]
+        () => filterByFY(property.financials?.transactions || [], country, selectedFY),
+        [property.financials?.transactions, country, selectedFY]
     );
 
-    const handleExportCSV = useCallback(() => {
-        const fyLabel = selectedFY !== null ? getFYLabel(selectedFY) : 'All Time';
-        const csv = generateTaxCSV(property, filteredTransactions, fyLabel, selectedFY);
-        const safeName = property.name.replace(/[^a-zA-Z0-9]/g, '_');
-        const fySuffix = selectedFY !== null ? `_FY${selectedFY}_${selectedFY + 1}` : '_AllTime';
-        downloadCSV(csv, `Tax_Report_${safeName}${fySuffix}.csv`);
-    }, [property, filteredTransactions, selectedFY]);
+    const fySuffix = selectedFY !== null ? `_${taxYearLabel(country, selectedFY).replace(/[^a-zA-Z0-9]/g, '')}` : '_AllTime';
 
-    const handleExportPDF = useCallback(() => {
-        const fyLabel = selectedFY !== null ? getFYLabel(selectedFY) : 'All Time';
-        generateTaxPDF(property, filteredTransactions, fyLabel, selectedFY);
-    }, [property, filteredTransactions, selectedFY]);
+    const handleExportCSV = useCallback(() => {
+        const fyLabel = selectedFY !== null ? taxYearLabel(country, selectedFY) : 'All Time';
+        const csv = generateTaxCSV(property, filteredTransactions, fyLabel, selectedFY, insurancePolicies);
+        const safeName = property.name.replace(/[^a-zA-Z0-9]/g, '_');
+        downloadFile(csv, `Tax_Report_${safeName}${fySuffix}.csv`, 'text/csv;charset=utf-8;');
+    }, [property, filteredTransactions, selectedFY, country, insurancePolicies, fySuffix]);
+
+    const handleExportHTML = useCallback(() => {
+        const fyLabel = selectedFY !== null ? taxYearLabel(country, selectedFY) : 'All Time';
+        const html = generateTaxHTML(property, filteredTransactions, fyLabel, selectedFY, insurancePolicies);
+        const safeName = property.name.replace(/[^a-zA-Z0-9]/g, '_');
+        downloadFile(html, `Tax_Report_${safeName}${fySuffix}.html`, 'text/html;charset=utf-8;');
+    }, [property, filteredTransactions, selectedFY, country, insurancePolicies, fySuffix]);
 
     const metrics = useMemo(() => {
         const txns = filteredTransactions;
@@ -1000,7 +1037,7 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
         let opsCouncil = 0;
         // AU FY 2024/25 = Jul 2024 – Jun 2025. Charges with year=2024 or year=2025 could fall in this FY.
         // Match charges whose dueDate falls within the FY range, or whose year overlaps with the FY.
-        const fyRange = selectedFY !== null ? getFYRange(selectedFY) : null;
+        const fyRange = selectedFY !== null ? taxYearRange(country, selectedFY) : null;
         const inFY = (dueDate?: string, year?: number): boolean => {
             if (!fyRange) return true; // no FY filter = include all
             if (dueDate && dueDate >= fyRange.start && dueDate <= fyRange.end) return true;
@@ -1018,7 +1055,11 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
                 if (!ct.paidByTenant && inFY(ct.dueDate, ct.year)) opsCouncil += ct.amountPaid || ct.amountDue;
             }
         }
-        const opsTotal = opsStrata + opsCouncil; // already annual amounts
+        // Insurance from linked policies (annual, cash basis) unless already a transaction
+        const opsInsurance = expenseItems.some(t => t.category === 'Insurance')
+            ? 0
+            : insuranceForTaxYear(insurancePolicies, country, selectedFY, currency).total;
+        const opsTotal = opsStrata + opsCouncil + opsInsurance; // already annual amounts
 
         const income = annualised ? rawIncome * annualisationFactor : rawIncome;
         const txnExpenses = annualised ? rawExpenses * annualisationFactor : rawExpenses;
@@ -1141,7 +1182,7 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
             taxablePropertyIncome, gearingStatus, taxEffect, afterTaxCashFlow, afterTaxYield,
             hasTaxData, hasInterestBreakdown,
         };
-    }, [property, annualised, filteredTransactions, selectedFY]);
+    }, [property, annualised, filteredTransactions, selectedFY, country, currency, insurancePolicies]);
 
     const fmt = (n: number) => `${symbol}${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
     const fmtSigned = (n: number) => `${n < 0 ? '-' : ''}${fmt(n)}`;
@@ -1266,7 +1307,7 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
                         >
                             <option value="">All FYs</option>
                             {availableFYs.map(fy => (
-                                <option key={fy} value={fy}>{getFYLabel(fy)}</option>
+                                <option key={fy} value={fy}>{taxYearLabel(country, fy)}</option>
                             ))}
                         </select>
                     )}
@@ -1279,12 +1320,12 @@ const FinancialHealthSection: React.FC<FinancialHealthSectionProps> = ({ propert
                         CSV
                     </button>
                     <button
-                        onClick={handleExportPDF}
+                        onClick={handleExportHTML}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs font-semibold text-slate-600 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors border border-slate-300 dark:border-slate-600"
-                        title="Print / save as PDF tax report"
+                        title="Download tax report as an HTML file (open in a browser, then print to PDF)"
                     >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m0 0a48.99 48.99 0 0 1 10.5 0m-10.5 0V4.875c0-.621.504-1.125 1.125-1.125h8.25c.621 0 1.125.504 1.125 1.125v3.659" /></svg>
-                        PDF
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                        HTML
                     </button>
                 </div>
                 <ValuationForm property={property} symbol={symbol} onSave={onSave} />

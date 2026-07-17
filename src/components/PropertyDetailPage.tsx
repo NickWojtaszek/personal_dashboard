@@ -661,7 +661,7 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                     />
                 </div>
                 {viewMode === 'metrics' && (
-                    <FinancialHealthSection property={property} onSave={handleSave} />
+                    <FinancialHealthSection property={property} onSave={handleSave} insurancePolicies={insurancePolicies?.filter(p => p.propertyId === property.id)} />
                 )}
                 {/* Duplicate warnings — rendered in EVERY view: extraction is
                     usually triggered from the Correspondence tab, where these
