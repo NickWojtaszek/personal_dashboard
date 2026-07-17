@@ -13,7 +13,12 @@ export default defineConfig(({ mode }) => {
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GOOGLE_CLIENT_ID': JSON.stringify(env.GOOGLE_CLIENT_ID),
+        // Accept either name: VITE_GOOGLE_CLIENT_ID is what the hosted env (Railway)
+        // sets and matches the VITE_ convention used by supabase.ts; GOOGLE_CLIENT_ID
+        // is the older unprefixed name still used by some local .env files.
+        'process.env.GOOGLE_CLIENT_ID': JSON.stringify(
+          env.VITE_GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || ''
+        ),
       },
       resolve: {
         alias: {
