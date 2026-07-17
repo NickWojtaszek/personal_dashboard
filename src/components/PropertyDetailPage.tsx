@@ -18,6 +18,7 @@ import CorrespondenceSection from './property-detail/CorrespondenceSection';
 import ThreadsSection from './property-detail/ThreadsSection';
 import FinancialHealthSection from './property-detail/FinancialHealthSection';
 import PropertyDataGaps from './property-detail/PropertyDataGaps';
+import ValuationHistorySection from './property-detail/ValuationHistorySection';
 import DocumentsContainer from './DocumentsContainer';
 import PrintModal from './property-detail/PrintModal';
 import PrintablePropertyReport from './property-detail/PrintablePropertyReport';
@@ -755,6 +756,9 @@ const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({ property, onBac
                             onCancel={handleCancel}
                             onSourceClick={handleSourceClick}
                         />
+                        </div>
+                        <div data-section="valuations">
+                        <ValuationHistorySection property={property} onSave={handleSave} />
                         </div>
                         <div data-section="mortgage">
                         <MortgageSection

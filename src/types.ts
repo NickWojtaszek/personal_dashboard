@@ -69,6 +69,21 @@ export interface FinancialTransaction {
     sourceCorrespondenceId?: string; // ID of the CorrespondenceItem it was extracted from
 }
 
+/**
+ * A point-in-time market snapshot — value, rent and cap rate — for tracking a
+ * property over time. Source-agnostic: entered by hand (Domain/realEstimate),
+ * a bank valuation, or later fed by a script. Rent is weekly (AU convention).
+ */
+export interface PropertyValuation {
+    id: string;
+    date: string;          // YYYY-MM-DD
+    value?: number;        // market value estimate
+    rentPerWeek?: number;  // estimated weekly rent
+    capRate?: number;      // % gross yield; if omitted, derived from value + rentPerWeek×52
+    source?: string;       // e.g. 'Domain', 'realEstimate', 'Bank valuation', 'Manual'
+    notes?: string;
+}
+
 export interface PropertyFinancials {
     currency?: string; // e.g. 'AUD', 'GBP', 'USD'
     transactions?: FinancialTransaction[];
@@ -76,6 +91,8 @@ export interface PropertyFinancials {
     purchaseDate?: string; // YYYY-MM-DD
     estimatedValue?: number;
     estimatedValueDate?: string; // YYYY-MM-DD
+    /** Time series of market value / rent / cap-rate snapshots. */
+    valuations?: PropertyValuation[];
     // Tax & depreciation
     annualDepreciation?: number; // From quantity surveyor report (Div 40 + Div 43 combined)
     marginalTaxRate?: number; // e.g. 0.37 for 37% bracket
