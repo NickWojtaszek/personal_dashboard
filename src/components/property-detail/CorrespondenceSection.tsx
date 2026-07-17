@@ -166,7 +166,21 @@ const CorrespondenceSection: React.FC<CorrespondenceSectionProps> = ({ property,
     }, [property, syncConfig, onSave]);
 
     const handleSyncConfigSave = (config: GmailSyncConfig) => {
-        onSave({ ...property, gmailSync: config });
+        // buildQuery() scopes the whole OR'd query with `after:lastSyncedAt`, so a
+        // rule added today would silently only ever match mail that arrives from now
+        // on — an existing notice from weeks ago could never be found, and each sync
+        // pushes the cutoff further forward. Drop the cutoff whenever a rule is added
+        // or its query is edited so the next sync backfills. (Deleting a rule needs no
+        // backfill. Re-fetched messages dedupe on gmailMessageId, so nothing doubles.)
+        const prevRules = syncConfig.rules || [];
+        const needsBackfill = config.rules.some(r => {
+            const prev = prevRules.find(p => p.id === r.id);
+            return !prev || prev.query !== r.query;
+        });
+        onSave({
+            ...property,
+            gmailSync: needsBackfill ? { ...config, lastSyncedAt: undefined } : config,
+        });
     };
 
     // ─── Item actions ───────────────────────────────────────────

@@ -18,6 +18,10 @@ const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
 
 const CouncilTaxSection: React.FC<CouncilTaxSectionProps> = ({ property, isEditing, onSetEditing, onSave, onCancel }) => {
     const [editedData, setEditedData] = useState<PropertyInfo['operations']>(property.operations);
+    // Must stay above the `if (isEditing) return …` below: declared after it, the
+    // editing render ran one fewer hook than the view render, so toggling Edit blew
+    // up with React #300 ("Rendered more hooks than expected").
+    const [showClearConfirm, setShowClearConfirm] = useState(false);
 
     const labels = getPropertyLabels(property.country);
 
@@ -147,7 +151,6 @@ const CouncilTaxSection: React.FC<CouncilTaxSectionProps> = ({ property, isEditi
         );
     }
 
-    const [showClearConfirm, setShowClearConfirm] = useState(false);
     const councilTax = (property.operations?.leaseholdCharges?.councilTax || []).sort((a,b) => b.year - a.year);
 
     return (
