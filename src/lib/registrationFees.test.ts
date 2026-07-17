@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { RegistrationFeeInfo, FeeBill } from '../types';
 import { markBillPaid } from './bills';
-import { parseAllDueDates } from '../components/general/dateUtils';
+import { parseAllDueDates, buildCostLineItems } from '../components/general/dateUtils';
 
 const feeBill = (over: Partial<FeeBill> = {}): FeeBill => ({
     id: 'b1', amountDue: 481, amountPaid: 0, dueDate: '2026-07-15', ...over,
@@ -63,6 +63,26 @@ describe('registration fees reach the overview', () => {
     it('drops an archived registration entirely', () => {
         const items = feeDates([gmc([feeBill()], { status: 'Archived' })]);
         expect(items).toHaveLength(0);
+    });
+
+    it('appears in the cost forecast as a monthly set-aside', () => {
+        const line = buildCostLineItems([], [], [], [gmc([feeBill({ amountDue: 481 })])])
+            .find(i => i.name === 'GMC')!;
+        expect(line.category).toBe('Fee');
+        expect(line.currency).toBe('GBP');
+        expect(line.monthlyAmount).toBeCloseTo(481 / 12, 2); // annual by default
+        expect(line.rawFrequency).toContain('year');
+    });
+
+    it('spreads a non-annual fee cycle over its own period in the forecast', () => {
+        const line = buildCostLineItems([], [], [], [gmc([feeBill({ amountDue: 600 })], { billingFrequencyMonths: 6 })])
+            .find(i => i.name === 'GMC')!;
+        expect(line.monthlyAmount).toBe(100); // 600 / 6
+    });
+
+    it('excludes an archived registration from the forecast', () => {
+        const lines = buildCostLineItems([], [], [], [gmc([feeBill()], { status: 'Archived' })]);
+        expect(lines.find(i => i.category === 'Fee')).toBeUndefined();
     });
 
     it('tracks GMC and MCIRL independently', () => {

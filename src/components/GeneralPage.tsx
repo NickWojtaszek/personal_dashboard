@@ -102,6 +102,7 @@ const GeneralPage: React.FC<GeneralPageProps> = ({ properties, insurancePolicies
                     insurancePolicies={insurancePolicies}
                     vehicles={vehicles}
                     properties={properties}
+                    registrationFees={registrationFees}
                 />
             )}
         </div>

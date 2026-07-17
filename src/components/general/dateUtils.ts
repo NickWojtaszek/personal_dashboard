@@ -281,7 +281,7 @@ export function formatFullDate(date: Date): string {
 
 export interface CostLineItem {
     name: string;
-    category: 'Insurance' | 'Vehicle' | 'Property' | 'Mortgage';
+    category: 'Insurance' | 'Vehicle' | 'Property' | 'Mortgage' | 'Fee';
     monthlyAmount: number;
     currency: string;
     rawAmount: number;
@@ -299,6 +299,7 @@ export function buildCostLineItems(
     insurancePolicies: InsuranceInfo[],
     vehicles: VehicleInfo[],
     properties: PropertyInfo[],
+    registrationFees: RegistrationFeeInfo[] = [],
 ): CostLineItem[] {
     const items: CostLineItem[] = [];
 
@@ -413,6 +414,26 @@ export function buildCostLineItems(
                 });
             }
         }
+    });
+
+    // Registration fees — same treatment as council rates: spread the latest bill
+    // over its billing cycle (annual by default) so a GMC ARF shows as a monthly
+    // set-aside alongside every other recurring cost.
+    registrationFees.forEach(fee => {
+        if (fee.status === 'Archived') return;
+        const bills = fee.bills;
+        if (!bills || bills.length === 0) return;
+        const latest = [...bills].sort((a, b) => (b.dueDate || '').localeCompare(a.dueDate || ''))[0];
+        if (!latest || !latest.amountDue) return;
+        const periodMonths = fee.billingFrequencyMonths || 12;
+        items.push({
+            name: fee.name,
+            category: 'Fee',
+            monthlyAmount: latest.amountDue / periodMonths,
+            currency: fee.currency || 'GBP',
+            rawAmount: latest.amountDue,
+            rawFrequency: `${latest.amountDue.toFixed(2)} / ${periodMonths === 12 ? 'year' : `${periodMonths} months`}`,
+        });
     });
 
     return items;
