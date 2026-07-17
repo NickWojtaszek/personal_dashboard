@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import type { DueDateItem } from './dateUtils';
-import { formatDistanceToNow } from './dateUtils';
+import { formatDistanceToNow, formatFullDate } from './dateUtils';
 import { BellIcon } from './Icons';
 import PolicyProgressBar from '../insurance-detail/PolicyProgressBar';
 import { addMonths, daysUntil as daysUntilShared, parseLocalDate, toLocalISO, todayLocal } from '../../lib/dates';
@@ -8,6 +8,8 @@ import { addMonths, daysUntil as daysUntilShared, parseLocalDate, toLocalISO, to
 const CURRENCY_SYMBOLS: Record<string, string> = { GBP: '\u00a3', USD: '$', AUD: 'A$', NZD: 'NZ$', EUR: '\u20ac', PLN: 'z\u0142' };
 
 type RangeFilter = 3 | 6 | 12;
+type SortField = 'date' | 'amount' | 'name';
+type SortDir = 'asc' | 'desc';
 
 interface DueDateOverviewProps {
     dueDates: DueDateItem[];
@@ -19,6 +21,20 @@ interface DueDateOverviewProps {
 /** 0 when the date is today or unparseable \u2014 never treat those as overdue. */
 function daysUntil(dateStr: string): number {
     return daysUntilShared(dateStr) ?? 0;
+}
+
+function compareItems(a: DueDateItem, b: DueDateItem, field: SortField, dir: SortDir): number {
+    let cmp: number;
+    if (field === 'amount') {
+        // Rows without an amount sort last regardless of direction.
+        const av = a.amount ?? -Infinity, bv = b.amount ?? -Infinity;
+        cmp = av - bv;
+    } else if (field === 'name') {
+        cmp = a.sourceName.localeCompare(b.sourceName);
+    } else {
+        cmp = a.date.localeCompare(b.date); // ISO 'YYYY-MM-DD' sorts lexically
+    }
+    return dir === 'asc' ? cmp : -cmp;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -39,6 +55,18 @@ const TYPE_COLORS: Record<string, string> = {
 
 const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate, onDismiss }) => {
     const [range, setRange] = useState<RangeFilter>(6);
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+    const toggleSort = (field: SortField) => {
+        if (field === sortField) {
+            setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortField(field);
+            // Date defaults to soonest-first; amount/name default to a sensible direction too.
+            setSortDir(field === 'amount' ? 'desc' : 'asc');
+        }
+    };
 
     const filtered = useMemo(() => {
         // addMonths clamps month-end; cutoff.setMonth() would overflow (31 Aug + 3 → 1 Dec)
@@ -50,8 +78,10 @@ const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate,
         });
     }, [dueDates, range]);
 
-    const overdue = filtered.filter(i => daysUntil(i.date) < 0);
-    const upcoming = filtered.filter(i => daysUntil(i.date) >= 0);
+    // Sort within each group so overdue always stays above upcoming, whatever the sort.
+    const sortGroup = (items: DueDateItem[]) => [...items].sort((a, b) => compareItems(a, b, sortField, sortDir));
+    const overdue = sortGroup(filtered.filter(i => daysUntil(i.date) < 0));
+    const upcoming = sortGroup(filtered.filter(i => daysUntil(i.date) >= 0));
 
     const RangeButton: React.FC<{ value: RangeFilter }> = ({ value }) => (
         <button
@@ -61,6 +91,19 @@ const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate,
             {value}m
         </button>
     );
+
+    const SortHeader: React.FC<{ field: SortField; label: string; align?: 'left' | 'right' }> = ({ field, label, align = 'left' }) => {
+        const active = sortField === field;
+        return (
+            <button
+                onClick={() => toggleSort(field)}
+                className={`inline-flex items-center gap-1 uppercase tracking-wider hover:text-slate-700 dark:hover:text-gray-200 transition-colors ${align === 'right' ? 'flex-row-reverse' : ''} ${active ? 'text-slate-700 dark:text-gray-200' : ''}`}
+            >
+                {label}
+                <span className="text-[10px]">{active ? (sortDir === 'asc' ? '▲' : '▼') : ''}</span>
+            </button>
+        );
+    };
 
     const renderRow = (item: DueDateItem) => {
         const days = daysUntil(item.date);
@@ -112,6 +155,13 @@ const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate,
                     ) : (
                         <p className="text-xs text-slate-400">&mdash;</p>
                     )}
+                </div>
+
+                {/* Due date — the actual date, previously only implied by the bar */}
+                <div className="w-24 flex-shrink-0 text-right hidden sm:block">
+                    <p className={`text-sm font-medium ${isOverdue ? 'text-red-600 dark:text-red-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                        {(() => { const d = parseLocalDate(item.date); return d ? formatFullDate(d) : '—'; })()}
+                    </p>
                 </div>
 
                 {/* Progress bar */}
@@ -169,14 +219,15 @@ const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate,
                 </div>
             </div>
 
-            {/* Column headers */}
+            {/* Column headers — Name / Cost / Due are clickable to sort */}
             <div className="flex items-center gap-4 px-5 py-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-gray-400">
                 <div className="w-2 flex-shrink-0" />
-                <div className="w-48 flex-shrink-0">Name</div>
+                <div className="w-48 flex-shrink-0"><SortHeader field="name" label="Name" /></div>
                 <div className="w-32 flex-shrink-0 hidden sm:block">Type</div>
-                <div className="w-24 flex-shrink-0 text-right hidden md:block">Cost</div>
+                <div className="w-24 flex-shrink-0 text-right hidden md:block"><SortHeader field="amount" label="Cost" align="right" /></div>
+                <div className="w-24 flex-shrink-0 text-right hidden sm:block"><SortHeader field="date" label="Due" align="right" /></div>
                 <div className="flex-grow hidden lg:block">Progress</div>
-                <div className="flex-grow lg:hidden">Due</div>
+                <div className="flex-grow lg:hidden">In</div>
                 <div className="w-20 flex-shrink-0 text-right">Status</div>
                 <div className="w-16 flex-shrink-0" />
             </div>
