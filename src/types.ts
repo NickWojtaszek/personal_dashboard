@@ -529,6 +529,45 @@ export interface ContractInfo {
     linkedInsuranceId?: string;
 }
 
+/**
+ * A single fee occurrence for a professional registration (e.g. one year's ARF).
+ * Mirrors CouncilTax so it can share the bill lifecycle (buildBillDueDates,
+ * markBillPaid): due date on the dashboard, dismiss on pay, predict next cycle.
+ */
+export interface FeeBill {
+    id: string;
+    amountDue: number;
+    amountPaid: number;
+    dueDate: string;      // YYYY-MM-DD
+    paidAt?: string;      // YYYY-MM-DD — anchors the next predicted cycle
+    archivedAt?: string;  // ISO timestamp — dismissed from the dashboard, kept as history
+    periodStart?: string; // YYYY-MM-DD
+    periodEnd?: string;   // YYYY-MM-DD
+    reference?: string;   // payment reference from the receipt
+    document?: Document;  // the receipt/invoice itself
+}
+
+/**
+ * A professional registration with a recurring fee — GMC (UK), the Irish Medical
+ * Council (MCIRL), a chamber of physicians, etc. Renewed on a fixed cycle
+ * (annual by default).
+ */
+export interface RegistrationFeeInfo {
+    id: string;
+    name: string;                    // "GMC", "Irish Medical Council"
+    authority?: string;              // "General Medical Council"
+    referenceNumber?: string;        // membership/registration number, e.g. GMC ref 6121858
+    feeType?: string;                // "ARF — Annual Retention Fee"
+    currency?: string;               // 'GBP', 'EUR', ...
+    billingFrequencyMonths?: number; // renewal cycle; defaults to 12 (annual)
+    bills?: FeeBill[];
+    status?: 'Active' | 'Archived';
+    documents?: Document[];
+    groups?: string[];
+    notes?: string;
+    url?: string;                    // portal to pay / manage the registration
+}
+
 export interface InvoiceInfo {
     id: string;
     description: string;
@@ -599,7 +638,7 @@ export interface ShoppingItem {
     notes?: string;
 }
 
-export type Page = 'launcher' | 'claude' | 'properties' | 'insurance' | 'general' | 'invoices' | 'vehicles' | 'contracts' | 'radiology' | 'dictation' | 'correspondence' | 'documents';
+export type Page = 'launcher' | 'claude' | 'properties' | 'insurance' | 'general' | 'invoices' | 'vehicles' | 'contracts' | 'fees' | 'radiology' | 'dictation' | 'correspondence' | 'documents';
 
 /** Standalone correspondence store — not tied to any property. */
 export interface CorrespondenceStore {
@@ -607,4 +646,4 @@ export interface CorrespondenceStore {
     gmailSync: GmailSyncConfig;
     threads: ConversationThread[];
 }
-export type DueDateItemSubType = 'Lease End' | 'Next Inspection' | 'Insurance End' | 'Smoke Alarm Check' | 'Policy Renewal' | 'Policy End' | 'EICR Due' | 'Gas Safety Due' | 'Rego Expiry' | 'Rego Due' | 'Contract Expiry' | 'Council Rates Due';
+export type DueDateItemSubType = 'Lease End' | 'Next Inspection' | 'Insurance End' | 'Smoke Alarm Check' | 'Policy Renewal' | 'Policy End' | 'EICR Due' | 'Gas Safety Due' | 'Rego Expiry' | 'Rego Due' | 'Contract Expiry' | 'Council Rates Due' | 'Registration Fee Due';

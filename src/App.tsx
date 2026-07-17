@@ -8,7 +8,7 @@ import EditAppModal from './components/EditAppModal';
 import AllowedUsersModal from './components/AllowedUsersModal';
 import BugNotes from './components/BugNotes';
 import { isSupabaseEnabled } from './lib/supabase';
-import { INITIAL_APPS, APP_GROUPS, INITIAL_PROJECTS, PROJECT_GROUPS, INITIAL_PROPERTIES, PROPERTY_GROUPS, INITIAL_INSURANCE_POLICIES, INSURANCE_GROUPS, INITIAL_CONTRACTS, CONTRACT_GROUPS, INITIAL_INVOICES, PURCHASE_INVOICE_CATEGORIES, INVOICE_LOCATIONS, INITIAL_VEHICLES, VEHICLE_GROUPS } from './constants';
+import { INITIAL_APPS, APP_GROUPS, INITIAL_PROJECTS, PROJECT_GROUPS, INITIAL_PROPERTIES, PROPERTY_GROUPS, INITIAL_INSURANCE_POLICIES, INSURANCE_GROUPS, INITIAL_CONTRACTS, CONTRACT_GROUPS, INITIAL_INVOICES, PURCHASE_INVOICE_CATEGORIES, INVOICE_LOCATIONS, INITIAL_VEHICLES, VEHICLE_GROUPS, INITIAL_REGISTRATION_FEES, FEE_GROUPS } from './constants';
 
 // Lazy-loaded pages and modals — these pull in heavy deps (pdfjs, @google/genai,
 // the entire radiology sub-app) that shouldn't block initial render.
@@ -29,6 +29,7 @@ const EditVehicleModal = lazy(() => import('./components/EditVehicleModal'));
 const NewRegistrationModal = lazy(() => import('./components/NewRegistrationModal'));
 const ContractsPage = lazy(() => import('./components/ContractsPage'));
 const ContractDetailPage = lazy(() => import('./components/ContractDetailPage'));
+const RegistrationFeesPage = lazy(() => import('./components/RegistrationFeesPage'));
 const RadiologyTemplatesPage = lazy(() => import('./components/RadiologyTemplatesPage'));
 const DictationPage = lazy(() => import('./components/DictationPage'));
 const CorrespondencePage = lazy(() => import('./components/CorrespondencePage'));
@@ -39,12 +40,12 @@ const PageLoading = () => (
         <div className="text-sm text-slate-500 dark:text-slate-400">Loading\u2026</div>
     </div>
 );
-import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, Page, CorrespondenceStore, Disposal } from './types';
+import type { AppInfo, ProjectInfo, PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, RegistrationFeeInfo, Page, CorrespondenceStore, Disposal } from './types';
 import DisposeAssetModal from './components/DisposeAssetModal';
 import type { DueDateItem } from './components/general/dateUtils';
 import { loadAllItems, saveAllItems } from './lib/storage';
 import { openDocument } from './lib/documents';
-import { markRatesPaid } from './lib/councilRates';
+import { markBillPaid } from './lib/bills';
 import { arrayMove } from '@dnd-kit/sortable';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -99,6 +100,10 @@ const App: React.FC = () => {
     const [contractGroups, setContractGroups] = useState<string[]>([]);
     const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
 
+    // Registration fees state (GMC, MCIRL, ...)
+    const [registrationFees, setRegistrationFees] = useState<RegistrationFeeInfo[]>([]);
+    const [feeGroups, setFeeGroups] = useState<string[]>([]);
+
     // Correspondence state (standalone, not tied to any property)
     const [correspondenceStore, setCorrespondenceStore] = useState<CorrespondenceStore>({
         correspondence: [],
@@ -150,6 +155,8 @@ const App: React.FC = () => {
         vehicleGroups: 'launcher-vehicle-groups',
         contracts: 'launcher-contracts',
         contractGroups: 'launcher-contract-groups',
+        registrationFees: 'launcher-registration-fees',
+        feeGroups: 'launcher-fee-groups',
         correspondenceStore: 'launcher-correspondence-store',
     } as const;
 
@@ -172,6 +179,8 @@ const App: React.FC = () => {
             setVehicleGroups((data.get(STORAGE_KEYS.vehicleGroups) as string[]) || VEHICLE_GROUPS);
             setContracts((data.get(STORAGE_KEYS.contracts) as ContractInfo[]) || INITIAL_CONTRACTS);
             setContractGroups((data.get(STORAGE_KEYS.contractGroups) as string[]) || CONTRACT_GROUPS);
+            setRegistrationFees((data.get(STORAGE_KEYS.registrationFees) as RegistrationFeeInfo[]) || INITIAL_REGISTRATION_FEES);
+            setFeeGroups((data.get(STORAGE_KEYS.feeGroups) as string[]) || FEE_GROUPS);
             const loadedCorr = data.get(STORAGE_KEYS.correspondenceStore) as CorrespondenceStore | undefined;
             if (loadedCorr) setCorrespondenceStore(loadedCorr);
             dataLoadedRef.current = true;
@@ -192,6 +201,8 @@ const App: React.FC = () => {
             setVehicleGroups(VEHICLE_GROUPS);
             setContracts(INITIAL_CONTRACTS);
             setContractGroups(CONTRACT_GROUPS);
+            setRegistrationFees(INITIAL_REGISTRATION_FEES);
+            setFeeGroups(FEE_GROUPS);
             dataLoadedRef.current = true;
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,6 +228,8 @@ const App: React.FC = () => {
         if (vehicleGroups.length > 0) items[STORAGE_KEYS.vehicleGroups] = vehicleGroups;
         if (contracts.length > 0) items[STORAGE_KEYS.contracts] = contracts;
         if (contractGroups.length > 0) items[STORAGE_KEYS.contractGroups] = contractGroups;
+        if (registrationFees.length > 0) items[STORAGE_KEYS.registrationFees] = registrationFees;
+        if (feeGroups.length > 0) items[STORAGE_KEYS.feeGroups] = feeGroups;
         if (correspondenceStore.correspondence.length > 0 || correspondenceStore.threads.length > 0 || correspondenceStore.gmailSync.rules.length > 0) {
             items[STORAGE_KEYS.correspondenceStore] = correspondenceStore;
         }
@@ -227,7 +240,7 @@ const App: React.FC = () => {
             console.error("Failed to save data to storage", error);
             setSaveError(`Save failed: ${error?.message || 'Unknown error'}. Your changes may not persist on refresh.`);
         });
-    }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, contracts, contractGroups, correspondenceStore]);
+    }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, contracts, contractGroups, registrationFees, feeGroups, correspondenceStore]);
 
 
     // --- General Handlers ---
@@ -265,7 +278,7 @@ const App: React.FC = () => {
         a.download = `dashboard-backup-${new Date().toISOString().replace(/[:.]/g, '').slice(0, 15)}.json`;
         a.click();
         URL.revokeObjectURL(url);
-    }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, contracts, contractGroups, correspondenceStore]);
+    }, [apps, appGroups, projects, projectGroups, properties, propertyGroups, insurancePolicies, insuranceGroups, invoices, invoiceGroups, invoiceLocations, vehicles, vehicleGroups, contracts, contractGroups, registrationFees, feeGroups, correspondenceStore]);
 
     const handleImportData = useCallback(() => {
         const input = document.createElement('input');
@@ -325,13 +338,14 @@ const App: React.FC = () => {
     }, []);
 
     const handleDashboardNavigate = useCallback((item: DueDateItem) => {
-        const pageMap: Record<string, Page> = { Property: 'properties', Insurance: 'insurance', Vehicle: 'vehicles' };
+        const pageMap: Record<string, Page> = { Property: 'properties', Insurance: 'insurance', Vehicle: 'vehicles', RegistrationFee: 'fees' };
         const targetPage = pageMap[item.type];
         if (!targetPage) return;
         setPage(targetPage);
         if (item.type === 'Property') { setSelectedPropertyId(item.id); setSelectedInsuranceId(null); setSelectedVehicleId(null); }
         else if (item.type === 'Insurance') { setSelectedInsuranceId(item.id); setSelectedPropertyId(null); setSelectedVehicleId(null); }
         else if (item.type === 'Vehicle') { setSelectedVehicleId(item.id); setSelectedPropertyId(null); setSelectedInsuranceId(null); }
+        // Fees are a flat list with no per-item detail page — landing on the page is enough.
         setScrollToSection(item.section || null);
     }, []);
 
@@ -342,22 +356,30 @@ const App: React.FC = () => {
      * alone records no date and so cannot drive the cycle.
      */
     const handleDismissDueDate = useCallback((item: DueDateItem) => {
-        if (item.type !== 'Property' || !item.recordId) return;
-        setProperties(prev => prev.map(p => {
-            if (p.id !== item.id) return p;
-            const councilTax = p.operations?.leaseholdCharges?.councilTax;
-            if (!councilTax?.some(ct => ct.id === item.recordId)) return p;
-            return {
-                ...p,
-                operations: {
-                    ...p.operations,
-                    leaseholdCharges: {
-                        ...p.operations!.leaseholdCharges,
-                        councilTax: councilTax.map(ct => ct.id === item.recordId ? markRatesPaid(ct) : ct),
+        if (!item.recordId) return;
+        if (item.type === 'Property') {
+            setProperties(prev => prev.map(p => {
+                if (p.id !== item.id) return p;
+                const councilTax = p.operations?.leaseholdCharges?.councilTax;
+                if (!councilTax?.some(ct => ct.id === item.recordId)) return p;
+                return {
+                    ...p,
+                    operations: {
+                        ...p.operations,
+                        leaseholdCharges: {
+                            ...p.operations!.leaseholdCharges,
+                            councilTax: councilTax.map(ct => ct.id === item.recordId ? markBillPaid(ct) : ct),
+                        },
                     },
-                },
-            };
-        }));
+                };
+            }));
+        } else if (item.type === 'RegistrationFee') {
+            setRegistrationFees(prev => prev.map(f => {
+                if (f.id !== item.id) return f;
+                if (!f.bills?.some(b => b.id === item.recordId)) return f;
+                return { ...f, bills: f.bills.map(b => b.id === item.recordId ? markBillPaid(b) : b) };
+            }));
+        }
     }, []);
 
     // --- App Launcher Handlers ---
@@ -847,6 +869,24 @@ const App: React.FC = () => {
         });
     }, []);
 
+    // --- Registration Fees Handlers ---
+    const handleNewRegistrationFee = useCallback(() => {
+        const newFee: RegistrationFeeInfo = { id: uuidv4(), name: 'New Registration', status: 'Active', billingFrequencyMonths: 12, bills: [], groups: [] };
+        setRegistrationFees(prev => [newFee, ...prev]);
+    }, []);
+
+    const handleSaveRegistrationFee = useCallback((feeToSave: RegistrationFeeInfo) => {
+        setRegistrationFees(prev => {
+            const existing = prev.find(f => f.id === feeToSave.id);
+            if (existing) return prev.map(f => f.id === feeToSave.id ? feeToSave : f);
+            return [feeToSave, ...prev];
+        });
+    }, []);
+
+    const handleDeleteRegistrationFee = useCallback((feeId: string) => {
+        setRegistrationFees(prev => prev.filter(f => f.id !== feeId));
+    }, []);
+
     const renderPage = () => {
         switch(page) {
             case 'general': {
@@ -855,6 +895,7 @@ const App: React.FC = () => {
                             properties={properties}
                             insurancePolicies={insurancePolicies}
                             contracts={contracts}
+                            registrationFees={registrationFees}
                             invoices={invoices}
                             vehicles={vehicles}
                             onNewInvoice={handleNewInvoice}
@@ -996,6 +1037,15 @@ const App: React.FC = () => {
                         onNewContract={handleNewContract}
                         onEditContract={() => {}}
                         onGroupsChange={(groups) => setContractGroups(groups)}
+                    />;
+            case 'fees':
+                return <RegistrationFeesPage
+                        fees={registrationFees}
+                        feeGroups={feeGroups}
+                        onNewFee={handleNewRegistrationFee}
+                        onSaveFee={handleSaveRegistrationFee}
+                        onDeleteFee={handleDeleteRegistrationFee}
+                        onGroupsChange={(groups) => setFeeGroups(groups)}
                     />;
             case 'correspondence':
                 return <CorrespondencePage

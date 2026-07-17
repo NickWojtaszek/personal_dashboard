@@ -30,6 +30,7 @@ const PAGE_LABELS: Record<Page, string> = {
     invoices: 'Invoices',
     vehicles: 'Rego',
     contracts: 'Contracts',
+    fees: 'Fees',
     correspondence: 'Email',
     documents: 'Documents',
     radiology: 'Radiology',

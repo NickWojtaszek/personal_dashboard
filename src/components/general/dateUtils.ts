@@ -1,11 +1,11 @@
-import type { PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, DueDateItemSubType } from '../../types';
+import type { PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, RegistrationFeeInfo, DueDateItemSubType } from '../../types';
 import { getPropertyLabels } from '../../lib/countryLabels';
 import { addMonths, parseLocalDate, todayLocal } from '../../lib/dates';
 
 export interface DueDateItem {
     id: string;
     date: string; // ISO string 'YYYY-MM-DD'
-    type: 'Property' | 'Insurance' | 'Contract' | 'Invoice' | 'Vehicle';
+    type: 'Property' | 'Insurance' | 'Contract' | 'Invoice' | 'Vehicle' | 'RegistrationFee';
     subType: DueDateItemSubType;
     sourceName: string;
     // Extra context for row display
@@ -43,6 +43,62 @@ export function parseRenewalDate(renewalDateStr: string): Date | null {
     return new Date(year, month + 1, 0);
 }
 
+/** Minimal bill shape the shared emitter needs. CouncilTax and FeeBill both satisfy it. */
+interface BillLike {
+    id: string;
+    amountDue: number;
+    dueDate: string;
+    archivedAt?: string;
+    periodStart?: string;
+    periodEnd?: string;
+}
+
+interface BillDueMeta {
+    parentId: string;               // id of the owning entity (property / registration)
+    type: DueDateItem['type'];
+    subType: DueDateItemSubType;
+    sourceName: string;
+    detail?: string;
+    currency?: string;
+    amountFrequency?: string;
+    section?: string;
+}
+
+/**
+ * Shared bill → DueDateItem emitter for anything on a recurring billing cycle
+ * (council rates, registration fees). Outstanding bills surface directly and are
+ * dismissible (recordId set); when all are dismissed we project the next from the
+ * cycle so the gap stays visible instead of silently going missing until overdue.
+ *
+ * The progress-bar period prefers the bill's own dates, otherwise approximates
+ * from the cycle. The projected row spans last bill → next expected (both exact).
+ */
+export function buildBillDueDates(bills: BillLike[], freq: number | undefined, meta: BillDueMeta): DueDateItem[] {
+    const out: DueDateItem[] = [];
+    const base = {
+        id: meta.parentId, type: meta.type, subType: meta.subType, sourceName: meta.sourceName,
+        detail: meta.detail, currency: meta.currency, amountFrequency: meta.amountFrequency, section: meta.section,
+    };
+    const outstanding = bills.filter(b => !b.archivedAt);
+
+    if (outstanding.length > 0) {
+        outstanding.forEach(b => {
+            if (!b.dueDate) return;
+            const periodEnd = b.periodEnd || b.dueDate;
+            const periodStart = b.periodStart || (freq ? addMonths(b.dueDate, -freq) : '');
+            out.push({ ...base, recordId: b.id, date: b.dueDate, amount: b.amountDue, startDate: periodStart || undefined, endDate: periodEnd });
+        });
+    } else if (freq) {
+        // ISO date sort, not calendar year: sub-annual cycles put several bills in one year.
+        const latest = [...bills].sort((a, b) => (b.dueDate || '').localeCompare(a.dueDate || ''))[0];
+        const nextDue = latest?.dueDate ? addMonths(latest.dueDate, freq) : '';
+        if (nextDue) {
+            out.push({ ...base, date: nextDue, amount: latest.amountDue, startDate: latest.dueDate, endDate: nextDue, isPredicted: true });
+        }
+    }
+    return out;
+}
+
 export function parseAllDueDates(
     properties: PropertyInfo[],
     insurancePolicies: InsuranceInfo[],
@@ -50,6 +106,7 @@ export function parseAllDueDates(
     vehicles: VehicleInfo[],
     includeOverdue = false,
     contracts: ContractInfo[] = [],
+    registrationFees: RegistrationFeeInfo[] = [],
 ): DueDateItem[] {
     const allDates: DueDateItem[] = [];
     const today = todayLocal();
@@ -87,54 +144,38 @@ export function parseAllDueDates(
             allDates.push({ id: prop.id, date: prop.operations.compliance.smokeAlarms.nextCheck, type: 'Property', subType: 'Smoke Alarm Check', sourceName: prop.name, section: 'compliance' });
         }
 
-        // Council rates. Outstanding notices surface directly; once the last one is
-        // dismissed as paid we project the next from the property's billing cycle
-        // (Brisbane 3mo, Sunshine Coast 6mo) so the gap between notices stays visible
-        // — otherwise a notice that never arrives is silently missed until it's overdue.
+        // Council rates — bills on the property's billing cycle (Brisbane 3mo,
+        // Sunshine Coast 6mo). paidByTenant charges are the owner's zero concern.
         const councilTax = prop.operations?.leaseholdCharges?.councilTax;
         if (councilTax && councilTax.length > 0) {
-            const currency = getPropertyLabels(prop.country).currency;
             const freq = prop.billingFrequencyMonths;
-            const amountFrequency = freq ? `${freq} Months` : undefined;
-            const billable = councilTax.filter(ct => !ct.paidByTenant);
-            const outstanding = billable.filter(ct => !ct.archivedAt);
-
-            if (outstanding.length > 0) {
-                outstanding.forEach(ct => {
-                    if (!ct.dueDate) return;
-                    // The period drives the progress bar. Prefer what the notice actually
-                    // says; otherwise approximate it from the billing cycle so the row
-                    // still gets a bar instead of falling back to bare text.
-                    const periodEnd = ct.periodEnd || ct.dueDate;
-                    const periodStart = ct.periodStart || (freq ? addMonths(ct.dueDate, -freq) : '');
-                    allDates.push({
-                        id: prop.id, recordId: ct.id, date: ct.dueDate,
-                        type: 'Property', subType: 'Council Rates Due', sourceName: prop.name,
-                        detail: prop.overview?.address,
-                        startDate: periodStart || undefined, endDate: periodEnd,
-                        amount: ct.amountDue, amountFrequency, currency,
-                        section: 'councilTax',
-                    });
-                });
-            } else if (freq) {
-                // Sorting on the ISO date string is safe and, unlike `year`, distinguishes
-                // bills within the same year — which quarterly billing produces four of.
-                const latest = [...billable].sort((a, b) => (b.dueDate || '').localeCompare(a.dueDate || ''))[0];
-                const nextDue = latest?.dueDate ? addMonths(latest.dueDate, freq) : '';
-                if (nextDue) {
-                    allDates.push({
-                        id: prop.id, date: nextDue,
-                        type: 'Property', subType: 'Council Rates Due', sourceName: prop.name,
-                        detail: prop.overview?.address,
-                        // Both ends are known exactly here, so the bar honestly tracks the
-                        // wait between the last notice and the next one that's due.
-                        startDate: latest.dueDate, endDate: nextDue,
-                        amount: latest.amountDue, amountFrequency, currency,
-                        isPredicted: true, section: 'councilTax',
-                    });
-                }
-            }
+            allDates.push(...buildBillDueDates(
+                councilTax.filter(ct => !ct.paidByTenant),
+                freq,
+                {
+                    parentId: prop.id, type: 'Property', subType: 'Council Rates Due',
+                    sourceName: prop.name, detail: prop.overview?.address,
+                    currency: getPropertyLabels(prop.country).currency,
+                    amountFrequency: freq ? `${freq} Months` : undefined,
+                    section: 'councilTax',
+                },
+            ));
         }
+    });
+
+    registrationFees.forEach(fee => {
+        if (fee.status === 'Archived') return;
+        const bills = fee.bills;
+        if (!bills || bills.length === 0) return;
+        const freq = fee.billingFrequencyMonths ?? 12; // professional fees renew annually by default
+        allDates.push(...buildBillDueDates(bills, freq, {
+            parentId: fee.id, type: 'RegistrationFee', subType: 'Registration Fee Due',
+            sourceName: fee.name,
+            detail: [fee.authority, fee.feeType].filter(Boolean).join(' · ') || undefined,
+            currency: fee.currency,
+            amountFrequency: freq === 12 ? 'Annual' : `${freq} Months`,
+            section: 'info',
+        }));
     });
 
     insurancePolicies.forEach(policy => {

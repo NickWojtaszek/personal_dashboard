@@ -51,6 +51,7 @@ const TYPE_COLORS: Record<string, string> = {
     Contract: 'bg-amber-500',
     Vehicle: 'bg-orange-500',
     Invoice: 'bg-purple-500',
+    RegistrationFee: 'bg-rose-500',
 };
 
 const DueDateOverview: React.FC<DueDateOverviewProps> = ({ dueDates, onNavigate, onDismiss }) => {

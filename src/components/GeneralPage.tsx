@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo } from '../types';
+import type { PropertyInfo, InsuranceInfo, ContractInfo, InvoiceInfo, VehicleInfo, RegistrationFeeInfo } from '../types';
 import { parseAllDueDates } from './general/dateUtils';
 import type { DueDateItem } from './general/dateUtils';
 import DueDateOverview from './general/DueDateOverview';
@@ -14,6 +14,7 @@ interface GeneralPageProps {
     properties: PropertyInfo[];
     insurancePolicies: InsuranceInfo[];
     contracts: ContractInfo[];
+    registrationFees: RegistrationFeeInfo[];
     invoices: InvoiceInfo[];
     vehicles: VehicleInfo[];
     onNewInvoice: () => void;
@@ -23,18 +24,18 @@ interface GeneralPageProps {
     onGoToEmail?: () => void;
 }
 
-const GeneralPage: React.FC<GeneralPageProps> = ({ properties, insurancePolicies, contracts, invoices, vehicles, onNewInvoice, onNavigate, onDismissDueDate, unreadEmailCount, onGoToEmail }) => {
+const GeneralPage: React.FC<GeneralPageProps> = ({ properties, insurancePolicies, contracts, registrationFees, invoices, vehicles, onNewInvoice, onNavigate, onDismissDueDate, unreadEmailCount, onGoToEmail }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('list');
 
     // Include overdue for the list view
     const allDueDates = useMemo(() => {
-        return parseAllDueDates(properties, insurancePolicies, invoices, vehicles, true, contracts);
-    }, [properties, insurancePolicies, invoices, vehicles, contracts]);
+        return parseAllDueDates(properties, insurancePolicies, invoices, vehicles, true, contracts, registrationFees);
+    }, [properties, insurancePolicies, invoices, vehicles, contracts, registrationFees]);
 
     // Future-only for calendar
     const futureDueDates = useMemo(() => {
-        return parseAllDueDates(properties, insurancePolicies, invoices, vehicles, false, contracts);
-    }, [properties, insurancePolicies, invoices, vehicles, contracts]);
+        return parseAllDueDates(properties, insurancePolicies, invoices, vehicles, false, contracts, registrationFees);
+    }, [properties, insurancePolicies, invoices, vehicles, contracts, registrationFees]);
 
     const ViewButton: React.FC<{ view: ViewMode; icon: React.ReactNode; label: string }> = ({ view, icon, label }) => {
         const isActive = viewMode === view;

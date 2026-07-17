@@ -33,6 +33,7 @@ const BLOB_KEYS = new Set([
   'launcher-invoices',
   'launcher-vehicles',
   'launcher-contracts',
+  'launcher-registration-fees',
   'launcher-correspondence-store',
 ]);
 
