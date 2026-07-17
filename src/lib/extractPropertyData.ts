@@ -567,9 +567,10 @@ ${pdfText}`;
 }
 
 /**
- * Extract text from a PDF given as an ArrayBuffer.
+ * Extract text from a PDF given as an ArrayBuffer. Exported for reuse by other
+ * document extractors (e.g. registration-fee receipts).
  */
-async function extractPdfText(data: ArrayBuffer): Promise<string> {
+export async function extractPdfText(data: ArrayBuffer): Promise<string> {
     const loadingTask = pdfjs.getDocument({ data });
     const pdf = await loadingTask.promise;
     let text = '';

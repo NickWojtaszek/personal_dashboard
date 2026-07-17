@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import type { RegistrationFeeInfo, FeeBill } from '../types';
-import { PlusIcon, TrashIcon, DocumentIcon, UploadIcon, CheckIcon } from './Icons';
+import { PlusIcon, TrashIcon, DocumentIcon, UploadIcon, CheckIcon, SpinnerIcon, CloseIcon } from './Icons';
 import { v4 as uuidv4 } from 'uuid';
 import { markBillPaid } from '../lib/bills';
 import { parseLocalDate, todayLocal, toLocalISO } from '../lib/dates';
 import { fileToDocument, openDocument } from '../lib/documents';
+import { extractFeeFromText, extractFeeFromFile, type ExtractedFee } from '../lib/extractRegistrationFee';
 
 const CURRENCY_SYMBOLS: Record<string, string> = { GBP: '£', USD: '$', AUD: 'A$', NZD: 'NZ$', EUR: '€', PLN: 'zł' };
 const CURRENCIES = ['GBP', 'EUR', 'AUD', 'NZD', 'USD', 'PLN'];
@@ -33,9 +34,78 @@ function billStatus(bill: FeeBill): { text: string; color: string } {
 
 const RegistrationFeesPage: React.FC<RegistrationFeesPageProps> = ({ fees, onNewFee, onSaveFee, onDeleteFee }) => {
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [importOpen, setImportOpen] = useState(false);
+    const [importText, setImportText] = useState('');
+    const [importing, setImporting] = useState(false);
+    const [importError, setImportError] = useState<string | null>(null);
 
     // All edits funnel through onSaveFee, immutably, so App owns the single source of truth.
     const patchFee = (fee: RegistrationFeeInfo, changes: Partial<RegistrationFeeInfo>) => onSaveFee({ ...fee, ...changes });
+
+    /**
+     * Fold an AI-extracted receipt/invoice into the data. Match an existing
+     * registration by short name or authority; otherwise create one. A receipt
+     * (already paid) is logged as paid + archived, so the dashboard immediately
+     * shows next cycle's prediction; an invoice stays outstanding as a due date.
+     */
+    const applyExtracted = (ex: ExtractedFee) => {
+        const now = new Date();
+        const dueDate = ex.date || toLocalISO(todayLocal());
+        const bill: FeeBill = {
+            id: uuidv4(),
+            amountDue: ex.amount ?? 0,
+            amountPaid: ex.isReceipt ? (ex.amount ?? 0) : 0,
+            dueDate,
+            reference: ex.paymentReference,
+            document: ex.document,
+            ...(ex.isReceipt ? { paidAt: ex.date || toLocalISO(now), archivedAt: now.toISOString() } : {}),
+        };
+
+        const key = (s?: string) => (s || '').toLowerCase().trim();
+        const match = fees.find(f =>
+            (ex.shortName && (key(f.name) === key(ex.shortName) || key(f.name).includes(key(ex.shortName)))) ||
+            (ex.authority && (key(f.authority) === key(ex.authority) || key(f.authority) === key(ex.authority)))
+        );
+
+        if (match) {
+            // Fill any blanks from the receipt, but never overwrite what's already set.
+            onSaveFee({
+                ...match,
+                authority: match.authority || ex.authority,
+                referenceNumber: match.referenceNumber || ex.referenceNumber,
+                feeType: match.feeType || ex.feeType,
+                currency: match.currency || ex.currency,
+                bills: [bill, ...(match.bills || [])],
+            });
+        } else {
+            onSaveFee({
+                id: uuidv4(),
+                name: ex.shortName || ex.authority || 'Registration',
+                authority: ex.authority,
+                referenceNumber: ex.referenceNumber,
+                feeType: ex.feeType,
+                currency: ex.currency,
+                billingFrequencyMonths: 12,
+                status: 'Active',
+                bills: [bill],
+                groups: [],
+            });
+        }
+    };
+
+    const runImport = async (fn: () => Promise<ExtractedFee>) => {
+        setImporting(true);
+        setImportError(null);
+        try {
+            applyExtracted(await fn());
+            setImportOpen(false);
+            setImportText('');
+        } catch (err) {
+            setImportError(err instanceof Error ? err.message : 'Extraction failed.');
+        } finally {
+            setImporting(false);
+        }
+    };
 
     const patchBill = (fee: RegistrationFeeInfo, billId: string, changes: Partial<FeeBill>) =>
         patchFee(fee, { bills: (fee.bills || []).map(b => b.id === billId ? { ...b, ...changes } : b) });
@@ -65,9 +135,14 @@ const RegistrationFeesPage: React.FC<RegistrationFeesPageProps> = ({ fees, onNew
                         Registration &amp; membership fees — GMC, MCIRL, and the like. Due dates surface on the General overview.
                     </p>
                 </div>
-                <button onClick={onNewFee} className="self-start flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-primary text-white font-semibold hover:bg-opacity-90 transition-colors">
-                    <PlusIcon /> Add registration
-                </button>
+                <div className="flex items-center gap-2 self-start">
+                    <button onClick={() => { setImportOpen(true); setImportError(null); }} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                        <UploadIcon /> Import from receipt
+                    </button>
+                    <button onClick={onNewFee} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-primary text-white font-semibold hover:bg-opacity-90 transition-colors">
+                        <PlusIcon /> Add registration
+                    </button>
+                </div>
             </div>
 
             {fees.length === 0 ? (
@@ -182,6 +257,44 @@ const RegistrationFeesPage: React.FC<RegistrationFeesPageProps> = ({ fees, onNew
                         </div>
                     );
                 })
+            )}
+
+            {importOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => !importing && setImportOpen(false)}>
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                            <h2 className="text-lg font-bold">Import from receipt</h2>
+                            <button onClick={() => !importing && setImportOpen(false)} className="p-1 text-slate-400 hover:text-slate-600"><CloseIcon /></button>
+                        </div>
+                        <div className="p-4 space-y-3">
+                            <p className="text-sm text-slate-500 dark:text-gray-400">
+                                Paste the receipt or email text (e.g. the GMC ARF email), or upload a PDF. The fee, reference, amount, currency and date are read automatically. A receipt is logged as paid and the next renewal is projected.
+                            </p>
+                            <textarea
+                                value={importText}
+                                onChange={e => setImportText(e.target.value)}
+                                placeholder="Paste the receipt / email text here…"
+                                rows={7}
+                                disabled={importing}
+                                className={`${inputClass} font-mono text-xs`}
+                            />
+                            {importError && <p className="text-sm text-red-600 dark:text-red-400">{importError}</p>}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => runImport(() => extractFeeFromText(importText))}
+                                    disabled={importing || !importText.trim()}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-primary text-white font-semibold hover:bg-opacity-90 disabled:opacity-50 transition-colors"
+                                >
+                                    {importing ? <SpinnerIcon /> : <CheckIcon />} Extract from text
+                                </button>
+                                <label className={`flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 font-semibold cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <UploadIcon /> Upload PDF
+                                    <input type="file" accept="application/pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) runImport(() => extractFeeFromFile(f)); }} />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
