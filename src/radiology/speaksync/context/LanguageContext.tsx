@@ -126,6 +126,8 @@ const pl = {
     "recistAnalysisDesc": "Włącz, aby AI automatycznie identyfikowało zmiany, obliczało SLD i oceniało odpowiedź na leczenie.",
     "tnmClassification": "Klasyfikacja TNM",
     "tnmClassificationDesc": "Włącz, aby AI dodało do wniosków wstępną klasyfikację TNM i sugestie wg wytycznych NCCN.",
+    "qaCheck": "Kontrola jakości (QA)",
+    "qaCheckDesc": "Włącz, aby AI dołączyło na końcu blok 'QA CHECK: PASS/FAIL' — kontrolę spójności (stronność, urządzenia, anatomia, modalność, pomiary). Tylko flaguje, nic nie zmienia w opisie.",
     /* Added missing pl translations for AI Style Memory features */
     "styleMemoryTitle": "Pamięć Stylu AI",
     "styleMemoryDesc": "AI uczy się na podstawie raportów, które mu \"pokazałeś\".",
@@ -526,6 +528,8 @@ const en = {
     "recistAnalysisDesc": "Enable for the AI to automatically identify lesions, calculate SLD, and assess treatment response.",
     "tnmClassification": "TNM Classification",
     "tnmClassificationDesc": "Enable for the AI to add preliminary TNM classification and NCCN guideline suggestions to the conclusions.",
+    "qaCheck": "Quality control (QA)",
+    "qaCheckDesc": "Enable for the AI to append a 'QA CHECK: PASS/FAIL' block — a consistency check (laterality, devices, anatomy, modality, measurements). Flags only, changes nothing in the report.",
     /* Added missing en translations for AI Style Memory features */
     "styleMemoryTitle": "AI Style Memory",
     "styleMemoryDesc": "The AI learns from reports you have 'taught' it.",
@@ -892,6 +896,8 @@ const de = {
     "recistAnalysisDesc": "Aktivieren, damit die KI automatisch Läsionen identifiziert, SLD berechnet und das Ansprechen auf die Behandlung bewertet.",
     "tnmClassification": "TNM-Klassifikation",
     "tnmClassificationDesc": "Aktivieren, damit die KI eine vorläufige TNM-Klassifikation und Vorschläge gemäß NCCN-Richtlinien zu den Schlussfolgerungen hinzufügt.",
+    "qaCheck": "Qualitätskontrolle (QA)",
+    "qaCheckDesc": "Aktivieren, damit die KI am Ende einen Block 'QA CHECK: PASS/FAIL' anhängt — eine Konsistenzprüfung (Seitigkeit, Geräte, Anatomie, Modalität, Messungen). Nur Markierung, keine Änderung am Befund.",
     /* Added missing de translations for AI Style Memory features */
     "styleMemoryTitle": "KI-Stilspeicher",
     "styleMemoryDesc": "Die KI lernt aus Berichten, die Sie ihr \"beigebracht\" haben.",

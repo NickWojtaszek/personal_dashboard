@@ -37,6 +37,18 @@ const promptSnippets = {
     tnmClassification: {
       true: "Na podstawie dostępnych danych, dodaj we wnioskach sugestię wstępnej klasyfikacji TNM oraz, jeśli to stosowne, sugestie dalszych kroków diagnostycznych zgodne z wytycznymi NCCN.",
       false: ""
+    },
+    qaCheck: {
+      true: `**Kontrola Jakości (QA):**
+Na samym końcu, PO sekcji Wniosków, dodaj osobny blok zaczynający się od linii "QA CHECK: PASS" albo "QA CHECK: FAIL". To kontrola jakości, NIE część opisu — na jej podstawie nie wprowadzaj żadnych zmian w opisie ani nowych rozpoznań; wyłącznie OZNACZ wykryte rozbieżności. Przy "FAIL" wypunktuj krótko tylko realne problemy. Sprawdź, nie zmieniając treści opisu:
+- Stronność (lewo/prawo): spójność w całym tekście i zgodność z techniką badania.
+- Obecność/brak narządów oraz położenie urządzeń (stenty, cystostomia, dreny, ORIF, gastric pull-up): czy anatomicznie wiarygodne.
+- Plausybilność przestrzenna/anatomiczna: miednica, przestrzeń zaotrzewnowa, podział płatowo-segmentalny płuc, komory/cysterny/linia pośrodkowa, ustawienie kostne vs złamania/sprzęt.
+- Logika pomiarów i progresji względem badań porównawczych.
+- Zgodność wniosków z podaną modalnością i fazą badania: nie formułuj wniosków wykraczających poza możliwości diagnostyczne modalności.
+- Brak zmieszania z opisami innych badań lub innych pacjentów.
+Zgłaszaj wyłącznie realne rozbieżności. Przy braku zastrzeżeń: "QA CHECK: PASS".`,
+      false: ""
     }
   },
   en: {
@@ -73,6 +85,18 @@ const promptSnippets = {
     tnmClassification: {
       true: "Based on available data, add a suggestion for preliminary TNM classification in the conclusions and, if appropriate, suggestions for further diagnostic steps consistent with NCCN guidelines.",
       false: ""
+    },
+    qaCheck: {
+      true: `**Quality Control (QA):**
+At the very end, AFTER the Conclusion section, add a separate block beginning with a line "QA CHECK: PASS" or "QA CHECK: FAIL". This is a quality control, NOT part of the report — do not make any changes to the findings or add new diagnoses based on it; only FLAG detected inconsistencies. On "FAIL", briefly list only genuine problems. Check, without altering the report text:
+- Laterality (left/right): consistency throughout and agreement with the study technique.
+- Organ presence/absence and device positioning (stents, cystostomy, drains, ORIF, gastric pull-up): whether anatomically plausible.
+- Spatial/anatomical plausibility: pelvis, retroperitoneum, lobar/segmental lung division, ventricles/cisterns/midline, bony alignment vs fractures/hardware.
+- Logic of measurements and progression against comparison studies.
+- Concordance of conclusions with the stated modality and study phase: do not draw conclusions beyond the diagnostic capability of the modality.
+- No mixing with descriptions from other studies or other patients.
+Report only genuine inconsistencies. If none: "QA CHECK: PASS".`,
+      false: ""
     }
   },
   de: {
@@ -108,6 +132,18 @@ const promptSnippets = {
     },
     tnmClassification: {
       true: "Fügen Sie auf der Grundlage der verfügbaren Daten in den Schlussfolgerungen einen Vorschlag für eine vorläufige TNM-Klassifikation und gegebenenfalls Vorschläge für weitere diagnostische Schritte gemäß den NCCN-Richtlinien hinzu.",
+      false: ""
+    },
+    qaCheck: {
+      true: `**Qualitätskontrolle (QA):**
+Fügen Sie ganz am Ende, NACH dem Abschnitt Schlussfolgerung, einen separaten Block hinzu, der mit einer Zeile "QA CHECK: PASS" oder "QA CHECK: FAIL" beginnt. Dies ist eine Qualitätskontrolle, NICHT Teil des Befunds — nehmen Sie auf dieser Grundlage keine Änderungen am Befund vor und fügen Sie keine neuen Diagnosen hinzu; MARKIEREN Sie nur erkannte Unstimmigkeiten. Bei "FAIL" listen Sie kurz nur echte Probleme auf. Prüfen Sie, ohne den Befundtext zu ändern:
+- Seitigkeit (links/rechts): Konsistenz im gesamten Text und Übereinstimmung mit der Untersuchungstechnik.
+- Vorhandensein/Fehlen von Organen und Lage von Geräten (Stents, Zystostomie, Drainagen, ORIF, Magenhochzug): ob anatomisch plausibel.
+- Räumliche/anatomische Plausibilität: Becken, Retroperitoneum, lobäre/segmentale Lungengliederung, Ventrikel/Zisternen/Mittellinie, knöcherne Ausrichtung vs. Frakturen/Material.
+- Logik der Messungen und Progression gegenüber Vergleichsuntersuchungen.
+- Übereinstimmung der Schlussfolgerungen mit der angegebenen Modalität und Untersuchungsphase: keine Schlussfolgerungen über die diagnostischen Möglichkeiten der Modalität hinaus.
+- Keine Vermischung mit Beschreibungen aus anderen Untersuchungen oder von anderen Patienten.
+Melden Sie nur echte Unstimmigkeiten. Falls keine: "QA CHECK: PASS".`,
       false: ""
     }
   }
@@ -148,6 +184,8 @@ const promptTemplates = {
 **Struktura Wniosków:**
 {{CONCLUSION_RULE}}
 
+{{QA_RULE}}
+
 **TWOJE WCZEŚNIEJSZE PRZYKŁADY (NAŚLADUJ TEN STYL):**
 {{EXAMPLES}}`,
   en: `You are a world-class AI assistant radiologist. Your task is to refine a raw radiological report. Adhere strictly to the following rules.
@@ -169,6 +207,8 @@ const promptTemplates = {
 
 **Conclusion Structure:**
 {{CONCLUSION_RULE}}
+
+{{QA_RULE}}
 
 **USER STYLE EXAMPLES (IMITATE THIS STYLE):**
 {{EXAMPLES}}`,
@@ -192,6 +232,8 @@ const promptTemplates = {
 **Struktur der Schlussfolgerung:**
 {{CONCLUSION_RULE}}
 
+{{QA_RULE}}
+
 **BENUTZERSTIL-BEISPIELE (DIESEN STIL NACHAHMEN):**
 {{EXAMPLES}}`
 };
@@ -211,6 +253,8 @@ export function generatePrompt(config: AIPromptConfig, language: Language, examp
     let tnmRule = snippets.tnmClassification[config.useTNM ? 'true' : 'false'];
     template = template.replace('{{TNM_RULE}}', tnmRule ? `\n3.  ${tnmRule}` : '');
 
+    template = template.replace('{{QA_RULE}}', snippets.qaCheck[config.useQA ? 'true' : 'false']);
+
     // Format examples
     const examplesText = examples.length > 0 
         ? examples.map((ex, i) => `EXAMPLE ${i+1}:\nRAW INPUT: ${ex.raw}\nPREFERRED OUTPUT: ${ex.final}`).join('\n\n')
@@ -228,6 +272,7 @@ const initialAIPromptConfig: AIPromptConfig = {
   conclusionDetail: 1,
   useRECIST: false,
   useTNM: false,
+  useQA: false,
 };
 
 export const initialAIPromptConfigs: Record<Language, AIPromptConfig> = {

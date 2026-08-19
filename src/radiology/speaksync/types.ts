@@ -86,6 +86,7 @@ export interface AIPromptConfig {
   conclusionDetail: number;
   useRECIST: boolean;
   useTNM: boolean;
+  useQA: boolean;
 }
 
 export type OrganCategory =

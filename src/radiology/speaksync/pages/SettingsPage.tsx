@@ -507,6 +507,7 @@ const SettingsPage: React.FC<{ embedded?: boolean }> = ({ embedded }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <ToggleSwitch label={t('settings.recistAnalysis')} description={t('settings.recistAnalysisDesc')} enabled={aiPromptConfig.useRECIST} onChange={() => handlePromptConfigChange('useRECIST', !aiPromptConfig.useRECIST)} />
                             <ToggleSwitch label={t('settings.tnmClassification')} description={t('settings.tnmClassificationDesc')} enabled={aiPromptConfig.useTNM} onChange={() => handlePromptConfigChange('useTNM', !aiPromptConfig.useTNM)} />
+                            <ToggleSwitch label={t('settings.qaCheck')} description={t('settings.qaCheckDesc')} enabled={aiPromptConfig.useQA} onChange={() => handlePromptConfigChange('useQA', !aiPromptConfig.useQA)} />
                         </div>
 
                         {/* Quick AI directives (# presets) */}
